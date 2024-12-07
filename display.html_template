@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        {display_css}
+    </style>
+    <title>Loom Control</title>
+</head>
+
+<body id="body">
+    <div class="flex-container" id="pattern_select_grid">
+        <div><label>Pattern</label>
+        <select name="pattern_menu" id="pattern_menu" title="Select a pattern to weave.&#10;Clear Menu clears all names except the one in use.">
+            <option></option>
+            <hr>
+            <option>Clear Menu</option>
+        </select></div>
+        <form class="upload-form">
+            <input type="file" id="file_input" multiple accept=".wif,.dtc" style="display:none;">
+            <input type="button" value="Upload Patterns"  title="Upload .wif or .dtx weaving files.&#10;You can also drag on drop files on the window." onclick="document.getElementById('file_input').click()"/>
+        </form>
+    </div>
+    <p/>
+
+    <div class="flex-container" id="pattern_display_grid">
+        <div><canvas id="canvas"/></div>
+        <div class="flex-container" id="pattern_controls_grid">
+            <div id="pick_color_spacer"></div>
+            <div id="pick_color" title="Pick color"></div>
+            <div><button class="button" id="weave_direction" title="Click to change the weave direction">?</button></div>
+        </div>
+    </div>
+
+    <div>
+        <label>Shafts raised </label>
+        <label id="shafts_raised"/>
+    </div>
+
+    <div class="flex-container" id="pick_number_grid">
+        <div><label>Pick </label><label id="pick_number"/></div>
+        <div><label id="repeat_number"/></div>
+    </div>      
+
+    <form action="" id="jump_to_pick_form">
+        <label>Jump to pick</label>
+        <input type="number" id="jump_to_pick" autocomplete="off" title="Specify the pick number for the next shed."/>
+        <button>Jump</button>
+    </form>
+
+    <label>Status: </label><label id="status">disconnected</label>
+
+    <p/>
+    <hr>
+    <p>Debugging stuff</p>
+    
+    <form action="" id="oob_command_form">
+        <label>Command mock loom</label>
+        <input type="text" id="outOfBandCommand" autocomplete="off" title="Commands are:&#10;d=change direction&#10;n=next shed&#10;e=toggle mock loom error state&#10;q=quit mock loom"/>
+        <button>Send OOB Command</button>
+    </form>
+
+    <div><label>Message from server: </label><label id='message'/></div>
+    <script>
+        {display_script}
+    </script>
+</body>
+
+</html>

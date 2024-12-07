@@ -1,0 +1,62 @@
+.button:hover {
+    background: #ddd;
+}
+
+#canvas {
+    border: 1px solid #000000;
+}
+
+#pick_color_spacer {
+    height: 30px;
+    opacity: 0;
+}
+
+#pick_color {
+    width: 30px;
+    height: 30px;
+    background-color: rgba(0, 0, 0, 0);
+    border-style: solid;
+    border-width: 1px;
+}
+
+#pattern_menu {
+    width: 200px;
+    /* the following doesn't seem to do anything, at least on on macOS Safari */
+    text-overflow: ellipsis;
+}
+
+#weave_direction {
+    font-size: 22px
+}
+
+#pattern_select_grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+}
+
+#pattern_display_grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
+}
+
+#pattern_controls_grid {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: left;
+    gap: 5px;
+}
+
+#pick_number_grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+}

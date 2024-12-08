@@ -4,7 +4,7 @@ from typing import AsyncGenerator
 
 import uvicorn
 from fastapi import FastAPI, WebSocket
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from .loom_server import LoomServer
 
@@ -43,6 +43,15 @@ async def get() -> HTMLResponse:
     )
 
     return HTMLResponse(display_html)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    bindata = pkgutil.get_data(
+        package="seguin_loom_server", resource="favicon-32x32.png"
+    )
+    assert bindata is not None
+    return Response(content=bindata, media_type="image/x-icon")
 
 
 @app.websocket("/ws")

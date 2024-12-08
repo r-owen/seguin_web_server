@@ -41,6 +41,7 @@ where = ["src"]
   "display.css",
   "display.html_template",
   "display.js",
+  "favicon-32x32.png"
 ]
 
 [project.scripts]

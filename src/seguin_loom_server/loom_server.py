@@ -26,13 +26,13 @@ MAX_PATTERNS = 20
 class CloseCode(enum.IntEnum):
     """WebSocket close codes
 
-    A subset from
+    A small subset of
     https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4
     """
 
-    Normal = 1000
-    GoingAway = 1001
-    Error = 1011
+    NORMAL = 1000
+    GOING_AWAY = 1001
+    ERROR = 1011
 
 
 class CommandError(Exception):
@@ -40,7 +40,7 @@ class CommandError(Exception):
 
 
 async def close_websocket(
-    ws: WebSocket, code: CloseCode = CloseCode.Normal, reason: str = ""
+    ws: WebSocket, code: CloseCode = CloseCode.NORMAL, reason: str = ""
 ) -> None:
     """Close a websocket using best effort and a short timeout."""
     try:
@@ -178,7 +178,7 @@ class LoomServer:
         self.websocket = None
         if websocket is not None:
             await close_websocket(
-                websocket, code=CloseCode.GoingAway, reason="another client barged in"
+                websocket, code=CloseCode.GOING_AWAY, reason="another client barged in"
             )
 
     async def disconnect(self) -> None:
@@ -323,13 +323,13 @@ class LoomServer:
 
     async def report_connection_state(self) -> None:
         """Report ConnectionState to the client."""
-        state = client_replies.ConnectionStateEnum.Disconnected
+        state = client_replies.ConnectionStateEnum.DISCONNECTED
         if self.connecting:
-            state = client_replies.ConnectionStateEnum.Connecting
+            state = client_replies.ConnectionStateEnum.CONNECTING
         elif self.connecting:
-            state = client_replies.ConnectionStateEnum.Disconnecting
+            state = client_replies.ConnectionStateEnum.DISCONNECTING
         elif self.connected:
-            state = client_replies.ConnectionStateEnum.Connected
+            state = client_replies.ConnectionStateEnum.CONNECTED
         reply = client_replies.ConnectionState(state=state)
         await self.reply_to_client(reply)
 
@@ -443,7 +443,7 @@ class LoomServer:
             self.client_connected = False
             if self.websocket is not None:
                 await close_websocket(
-                    self.websocket, code=CloseCode.Error, reason=repr(e)
+                    self.websocket, code=CloseCode.ERROR, reason=repr(e)
                 )
 
     async def read_loom_loop(self) -> None:

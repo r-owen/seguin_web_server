@@ -37,9 +37,9 @@
         <label id="shafts_raised"/>
     </div>
 
-    <div class="flex-container" id="pick_number_grid">
-        <div><label>Pick </label><label id="pick_number"/></div>
-        <div><label id="repeat_number"/></div>
+    <div>
+        <label>Pick </label><label id="pick_number"/>
+        <label id="repeat_number"/>
     </div>      
 
     <form action="" id="jump_to_pick_form">
@@ -48,7 +48,10 @@
         <button>Jump</button>
     </form>
 
-    <label>Status: </label><label id="status">disconnected</label>
+    <div>
+        <label>Status: </label>
+        <label id="status">disconnected</label>
+    </div>
 
     <p/>
     <hr>
@@ -57,7 +60,7 @@
     <form action="" id="oob_command_form">
         <label>Command mock loom</label>
         <input type="text" id="outOfBandCommand" autocomplete="off" title="Commands are:&#10;d=change direction&#10;n=next shed&#10;e=toggle mock loom error state&#10;q=quit mock loom"/>
-        <button>Send OOB Command</button>
+        <button>Submit</button>
     </form>
 
     <div><label>Message from server: </label><label id='message'/></div>

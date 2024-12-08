@@ -85,8 +85,9 @@ class MockLoom:
                     print("MockLoom: request state")
                 self.report_state()
             case "#":
-                # out of band command specific to the mock loom
-                match cmd_data:
+                # Out of band command specific to the mock loom.
+                # Cast to lowercase becase uppercase is default on iOS.
+                match cmd_data.lower():
                     case "d":
                         self.weave_forward = not self.weave_forward
                         self.report_direction()

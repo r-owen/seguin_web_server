@@ -5,10 +5,12 @@ import enum
 
 
 class ConnectionStateEnum(enum.IntEnum):
-    Disconnected = 0
-    Connected = 1
-    Connecting = 2
-    Disconnecting = 3
+    """Client websocket connection state."""
+
+    DISCONNECTED = 0
+    CONNECTED = 1
+    CONNECTING = 2
+    DISCONNECTING = 3
 
 
 @dataclasses.dataclass

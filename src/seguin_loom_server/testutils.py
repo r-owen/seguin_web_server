@@ -49,8 +49,8 @@ def create_test_client(
                     "WeaveDirection",
                 }
                 good_connection_states = {
-                    ConnectionStateEnum.Connecting,
-                    ConnectionStateEnum.Connected,
+                    ConnectionStateEnum.CONNECTING,
+                    ConnectionStateEnum.CONNECTED,
                 }
                 while True:
                     reply_dict = receive_dict(websocket)
@@ -62,7 +62,7 @@ def create_test_client(
                                     f"Unexpected state in {reply=}; "
                                     f"should be in {good_connection_states}"
                                 )
-                            elif reply.state != ConnectionStateEnum.Connected:
+                            elif reply.state != ConnectionStateEnum.CONNECTED:
                                 continue
                         case "LoomState":
                             assert reply.shed_closed

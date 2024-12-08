@@ -1,6 +1,8 @@
+import pkgutil
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import HTMLResponse
 
@@ -21,19 +23,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, FastAPI]:
 app = FastAPI(lifespan=lifespan)
 
 
+def get_file(filename: str) -> str:
+    """Get the contents of text file from src/seguin_loom_driver"""
+    bindata = pkgutil.get_data(package="seguin_loom_server", resource=filename)
+    assert bindata is not None
+    return bindata.decode()
+
+
 @app.get("/")
 async def get() -> HTMLResponse:
-    with open("display.html_template", "r") as f:
-        display_html = f.read()
+    display_html_template = get_file("display.html_template")
 
-    with open("display.css", "r") as f:
-        display_css = f.read()
+    display_css = get_file("display.css")
 
-    with open("display_script.js", "r") as f:
-        display_script = f.read()
+    display_js = get_file("display.js")
 
-    display_html = display_html.format(
-        display_css=display_css, display_script=display_script
+    display_html = display_html_template.format(
+        display_css=display_css, display_js=display_js
     )
 
     return HTMLResponse(display_html)
@@ -44,3 +50,13 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     global loom_server
     assert loom_server is not None
     await loom_server.run_client(websocket=websocket)
+
+
+def start_seguin_loom_server() -> None:
+    uvicorn.run(
+        "seguin_loom_server.main:app",
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+        reload=True,
+    )

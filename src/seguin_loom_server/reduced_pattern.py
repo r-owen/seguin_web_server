@@ -57,11 +57,8 @@ class ReducedPattern:
             )
         next_pick_number = self.pick_number + (1 if weave_forward else -1)
         if next_pick_number < 0:
-            if self.repeat_number > 1:
-                self.repeat_number -= 1
-                next_pick_number = len(self.picks)
-            else:
-                next_pick_number = 0
+            self.repeat_number -= 1
+            next_pick_number = len(self.picks)
         elif next_pick_number > len(self.picks):
             self.repeat_number += 1
             next_pick_number = 0

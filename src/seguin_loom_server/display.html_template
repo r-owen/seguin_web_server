@@ -62,7 +62,7 @@
 
     <div><label>Message from server: </label><label id='message'/></div>
     <script>
-        {display_script}
+        {display_js}
     </script>
 </body>
 

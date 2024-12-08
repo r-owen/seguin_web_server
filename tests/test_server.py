@@ -1,16 +1,11 @@
 import dataclasses
 import io
 import pathlib
-import sys
-from typing import Any
 
 from dtx_to_wif import read_dtx, read_wif
 
-appdir = pathlib.Path(__file__).parents[1]
-sys.path.append(str(appdir))
-
-from app.reduced_pattern import reduced_pattern_from_pattern_data  # noqa
-from app.testutils import create_test_client, receive_dict  # noqa
+from seguin_loom_server.reduced_pattern import reduced_pattern_from_pattern_data  # noqa
+from seguin_loom_server.testutils import create_test_client, receive_dict  # noqa
 
 datadir = pathlib.Path(__file__).parent / "data"
 
@@ -155,12 +150,12 @@ def test_select_pattern() -> None:
     pattern_path = all_pattern_paths[1]
     pattern_name = all_pattern_paths[1].name
     with open(pattern_path, "r") as f:
-        pattern_data = f.read()
+        raw_pattern_data = f.read()
     if pattern_name.endswith(".dtx"):
-        with io.StringIO(pattern_data) as dtx_file:
+        with io.StringIO(raw_pattern_data) as dtx_file:
             pattern_data = read_dtx(dtx_file)
     elif pattern_name.endswith(".wif"):
-        with io.StringIO(pattern_data) as wif_file:
+        with io.StringIO(raw_pattern_data) as wif_file:
             pattern_data = read_wif(wif_file)
     else:
         raise AssertionError("Unexpected unsupported file type: {pattern_path!s}")

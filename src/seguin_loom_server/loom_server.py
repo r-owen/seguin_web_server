@@ -20,7 +20,7 @@ from .mock_streams import MockStreamReader, MockStreamWriter
 from .reduced_pattern import Pick, ReducedPattern, reduced_pattern_from_pattern_data
 
 # The maximum number of patterns that can be in the history
-MaxPatterns = 20
+MAX_PATTERNS = 20
 
 
 class CloseCode(enum.IntEnum):
@@ -93,7 +93,7 @@ class LoomServer:
     async def add_pattern(self, pattern: ReducedPattern) -> None:
         """Add a pattern to self.pattern_dict.
 
-        Also purge the MaxPatterns oldest entries (excluding
+        Also purge the MAX_PATTERNS oldest entries (excluding
         the current pattern, if any) and report the new list
         of pattern names to the client.
         """
@@ -101,7 +101,7 @@ class LoomServer:
             None if self.current_pattern is None else self.current_pattern.name
         )
         self.pattern_dict[pattern.name] = pattern
-        for name in list(self.pattern_dict.keys())[:-MaxPatterns]:
+        for name in list(self.pattern_dict.keys())[:-MAX_PATTERNS]:
             if name != current_name:
                 del self.pattern_dict[name]
         await self.report_pattern_names()

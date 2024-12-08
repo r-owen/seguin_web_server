@@ -1,12 +1,7 @@
 import asyncio
-import pathlib
-import sys
 import unittest
 
-appdir = pathlib.Path(__file__).parents[1]
-sys.path.append(str(appdir))
-
-from app.mock_loom import MockLoom  # noqa
+from seguin_loom_server.mock_loom import MockLoom
 
 
 class TestMockLoom(unittest.IsolatedAsyncioTestCase):

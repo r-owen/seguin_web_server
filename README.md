@@ -53,7 +53,7 @@ If you advance past the end of the pattern, the display returns to pick 0 (no sh
 The fact that no shafts are raised is meant as a warning that you have reached the end.
 Continue advancing to weave the next repeat.
 
-Unweaving works much the same way: (an extra advance is needed to unweave past the beginning of one repeat and start unweaving the next repeat), but you cannot unweave past pick 0 of repeat 0.
+Unweaving also requires an extra advance to unweave past the beginning of one repeat and start unweaving the next repeat.
 
 ## Remembering Patterns
 

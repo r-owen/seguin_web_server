@@ -1,3 +1,4 @@
+import argparse
 import pkgutil
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -16,7 +17,24 @@ loom_server: LoomServer | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, FastAPI]:
     global loom_server
-    async with LoomServer(emulate_loom=True, verbose=True) as loom_server:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "serial_port",
+        help="Serial port connected to the loom, "
+        "typically of the form /dev/tty... "
+        "Specify 'mock' to run a mock (simulated) loom",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="print diagnostic information to stdout",
+    )
+    args = parser.parse_args()
+
+    async with LoomServer(
+        serial_port=args.serial_port, verbose=args.verbose
+    ) as loom_server:
         yield
 
 
@@ -38,8 +56,14 @@ async def get() -> HTMLResponse:
 
     display_js = get_file("display.js")
 
+    assert loom_server is not None
+    is_mock = loom_server.mock_loom is not None
+    display_debug_controls = "block" if is_mock else "none"
+
     display_html = display_html_template.format(
-        display_css=display_css, display_js=display_js
+        display_css=display_css,
+        display_js=display_js,
+        display_debug_controls=display_debug_controls,
     )
 
     return HTMLResponse(display_html)
@@ -61,7 +85,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     await loom_server.run_client(websocket=websocket)
 
 
-def start_seguin_loom_server() -> None:
+def run_seguin_loom() -> None:
     uvicorn.run(
         "seguin_loom_server.main:app",
         host="0.0.0.0",

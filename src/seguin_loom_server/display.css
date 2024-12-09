@@ -1,22 +1,21 @@
-.button:hover {
-    background: #ddd;
-}
-
-#canvas {
-    border: 1px solid #000000;
-}
-
-#pick_color_spacer {
-    height: 30px;
-    opacity: 0;
-}
-
-#pick_color {
-    width: 30px;
-    height: 30px;
+button {
     background-color: rgba(0, 0, 0, 0);
-    border-style: solid;
     border-width: 1px;
+}
+
+/* 
+button:hover {
+    background: #ddd;
+} */
+
+/* Pattern select area at top */
+
+#pattern_select_grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 5px;
 }
 
 #pattern_menu {
@@ -25,17 +24,7 @@
     text-overflow: ellipsis;
 }
 
-#weave_direction {
-    font-size: 22px
-}
-
-#pattern_select_grid {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 10px;
-}
+/* Pattern canvas and the buttons to the right */
 
 #pattern_display_grid {
     display: flex;
@@ -51,4 +40,29 @@
     flex-wrap: nowrap;
     align-items: left;
     gap: 5px;
+}
+
+#canvas {
+    border: 1px solid #000000;
+}
+
+#goto_next_pick_spacer {
+    height: 30px;
+    opacity: 0;
+}
+
+#goto_next_pick {
+    width: 30px;
+    height: 30px;
+    background-color: rgba(0, 0, 0, 0);
+    border-style: solid;
+    border-width: 1px;
+}
+
+#weave_direction {
+    width: 30px;
+    height: 30px;
+    font-size: 120%;
+    border-style: solid;
+    border-width: 1px;
 }

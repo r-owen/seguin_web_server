@@ -1,12 +1,24 @@
 from __future__ import annotations
 
-__all__ = ["Pick", "ReducedPattern", "reduced_pattern_from_pattern_data"]
+__all__ = [
+    "Pick",
+    "ReducedPattern",
+    "reduced_pattern_from_pattern_data",
+    "read_full_pattern",
+]
 
+import copy
 import dataclasses
-import typing
+import pathlib
+from typing import Any
 
-if typing.TYPE_CHECKING:
-    from dtx_to_wif import PatternData
+import dtx_to_wif
+
+
+def pop_and_check_type_field(typename: str, datadict: dict[str, Any]) -> None:
+    typestr = datadict.pop("type", typename)
+    if typestr != typename:
+        raise TypeError(f"Wrong type: {typestr=!r} != {typename!r}")
 
 
 @dataclasses.dataclass
@@ -22,6 +34,15 @@ class Pick:
 
     color: int
     are_shafts_up: list[bool]
+
+    @classmethod
+    def from_dict(cls, datadict: dict[str, Any]) -> Pick:
+        """Construct a Pick from a dict representation.
+
+        The "type" field is optional, but checked if present.
+        """
+        pop_and_check_type_field("Pick", datadict)
+        return cls(**datadict)
 
 
 @dataclasses.dataclass
@@ -43,6 +64,18 @@ class ReducedPattern:
     picks: list[Pick]
     pick_number: int = 0
     repeat_number: int = 1
+
+    @classmethod
+    def from_dict(cls, datadict: dict[str, Any]) -> ReducedPattern:
+        """Construct a ReducedPattern from a dict.
+
+        The "type" field is optional, but checked if present.
+        """
+        # Make a copy, so the caller doesn't see the picks field change
+        datadict = copy.deepcopy(datadict)
+        pop_and_check_type_field(typename="ReducedPattern", datadict=datadict)
+        datadict["picks"] = [Pick.from_dict(pickdict) for pickdict in datadict["picks"]]
+        return cls(**datadict)
 
     def increment_pick_number(self, weave_forward: bool) -> int:
         """Increment pick_number in the specified direction.
@@ -109,8 +142,18 @@ def _smallest_shaft(shafts: set[int]) -> int:
     return 0
 
 
-def reduced_pattern_from_pattern_data(name: str, data: PatternData) -> ReducedPattern:
+def reduced_pattern_from_pattern_data(
+    name: str, data: dtx_to_wif.PatternData
+) -> ReducedPattern:
     """Convert a dtx_to_wif.PatternData to a ReducedPattern.
+
+    Parameters
+    ----------
+    name : str
+        The name of the pattern to use (overrides the name
+        in PatternData).
+    data : dtx_to_wif.PatternData
+        The pattern read by dtx_to_wif.
 
     The result is simpler and smaller, and can be sent to easily
     encoded and sent to javascript.
@@ -127,7 +170,7 @@ def reduced_pattern_from_pattern_data(name: str, data: PatternData) -> ReducedPa
         # Compute a scaled version of the color table, where each
         # scaled r,g,b value is in range 0-255 (0-0xff) inclusive
         min_color = data.color_range[0]
-        color_scale = (data.color_range[1] - min_color) / 255
+        color_scale = 255 / (data.color_range[1] - min_color)
         # Note: PatternData promises that color_table
         # keys are 1, 2, ...N, with no missing keys,
         # so we can ignore the keys and just use the values.
@@ -199,3 +242,13 @@ def reduced_pattern_from_pattern_data(name: str, data: PatternData) -> ReducedPa
         picks=picks,
     )
     return result
+
+
+def read_full_pattern(path: pathlib.Path) -> dtx_to_wif.PatternData:
+    readfunc = {
+        ".wif": dtx_to_wif.read_wif,
+        ".dtx": dtx_to_wif.read_dtx,
+    }[path.suffix]
+    with open(path, "r") as f:
+        full_pattern = readfunc(f)
+    return full_pattern

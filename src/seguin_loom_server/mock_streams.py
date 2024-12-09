@@ -1,126 +1,156 @@
-__all__ = ["MockStreamReader", "MockStreamWriter", "open_mock_connection"]
+from __future__ import annotations
+
+__all__ = [
+    "MockStreamReader",
+    "MockStreamWriter",
+    "open_mock_connection",
+    "StreamReaderType",
+    "StreamWriterType",
+]
 
 import asyncio
 import collections
-from collections.abc import Awaitable, Callable
-from typing import Deque
+import weakref
+from typing import Deque, TypeAlias
 
-# TO DO: when we require Python 3.12 and later, change this to
-# ``type WriterCallbackType = ...``
-# It is not needed in this case, but does add some clarity.
-WriterCallbackType = Callable[[str], Awaitable[None]]
+DEFAULT_TERMINATOR = b"\n"
 
 
-class MockStreamReader:
-    """Minimal mock stream reader that only supports readline.
-
-    Intended to be constructed by `open_mock_connection`.
-    """
+class StreamData:
+    """Data contained in a mock stream."""
 
     def __init__(self) -> None:
-        self.queue: Deque[bytes] = collections.deque()
+        self.closed_event = asyncio.Event()
         self.data_available_event = asyncio.Event()
-        self.shaft_word = 0
-        self.isopen = True
+        self.queue: Deque[bytes] = collections.deque()
 
-    def appendline(self, str_data: str) -> None:
-        """Append a line of str data to be read by readline.
-
-        This method is not part of the standard API for StreamReader.
-        It is intended for use by the writer to the stream,
-        which is the end not expecting a true StreamReader.
-
-        Parameters
-        ----------
-        str_data : str
-            Data as a str (not bytes). This should be properly terminated
-            as this class only deals with terminated strings. It should also
-            be encodable to bytes using the default encoder.
-        """
-        self.queue.append(str_data.encode())
-        self.data_available_event.set()
-
-    def at_eof(self) -> bool:
-        return not self.isopen
-
-    async def readline(self) -> bytes:
-        while not self.queue:
-            self.data_available_event.clear()
-            await self.data_available_event.wait()
-        self.data_available_event.clear()
-        if not self.isopen:
-            return b""
-        data = self.queue.popleft()
-        return data
+    def _is_closed(self):
+        """Return true if this stream has been closed."""
+        return self.closed_event.is_set()
 
 
-class MockStreamWriter:
-    """Minimal mock stream writer that assumes each write is a line.
-
-    Intended to be constructed by `open_mock_connection`.
+class BaseMockStream:
+    """Base class for MockStreamReader and MockStreamWriter.
 
     Parameters
     ----------
-    async_callback : callable
-        An async function that will be called when `drain` is called,
-        once for every message written since the last call to `drain`.
-        It receives one positional argument: a line of data as an
-        unterminated str (decoded bytes).
-    reader : MockStreamReader
-        If specified (and `open_mock_connection` does specify it),
-        this writer sets ``reader.isopen`` false when the writer is closed.
-        This makes closing a writer/reader pair more realistic.
+    sd : StreamData
+        Stream data to use; if None create new.
+    terminator : bytes
+        Required terminator.
     """
 
     def __init__(
-        self, async_callback: WriterCallbackType, reader: MockStreamReader | None = None
-    ) -> None:
-        self.queue: Deque[bytes] = collections.deque()
-        self.async_callback = async_callback
-        self.reader = reader
-        self.isopen = True
-
-    def _assert_open(self) -> None:
-        if not self.isopen:
-            raise RuntimeError("MockStreamWriter is closed")
-
-    def close(self) -> None:
-        print("MockStreamWriter.close()")
-        self.isopen = False
-        if self.reader is not None:
-            self.reader.isopen = False
-
-    def is_closing(self) -> bool:
-        return not self.isopen
-
-    async def drain(self) -> None:
-        self._assert_open()
-        while self.queue:
-            str_data = self.queue.popleft().decode().rstrip()
-            await self.async_callback(str_data)
-
-    async def wait_closed(self) -> None:
-        return
-
-    def write(self, data: bytes) -> None:
-        print(f"MockStreamWriter.write({data!r}); {self.isopen=}")
-        self._assert_open()
-        self.queue.append(data)
+        self, sd: StreamData | None = None, terminator: bytes = DEFAULT_TERMINATOR
+    ):
+        if sd is None:
+            sd = StreamData()
+        self.sd = sd
+        self.terminator = terminator
+        self.sibling_sd: weakref.ProxyType[StreamData] | None = None
 
 
-def open_mock_connection(
-    async_callback: WriterCallbackType,
-) -> tuple[MockStreamReader, MockStreamWriter]:
-    """Create a mock stream reader and writer pair.
+class MockStreamReader(BaseMockStream):
+    """Minimal mock stream reader that only supports line-oriented data.
 
     Parameters
     ----------
-    async_callback : callable
-        An async function that will be called when `drain` is called,
-        once for every message written since the last call to `drain`.
-        It receives one positional argument: a line of data as an
-        unterminated str (decoded bytes).
+    sd : StreamData
+        Stream data to use; if None create new.
+    terminator : bytes
+        Required terminator. Calls to `readuntil` will raise
+        AssertionError if the separator is not in the terminator.
+
+    Intended to be created using `open_mock_connection` for pair of streams,
+    or `create_writer` to create a writer that will write to this reader.
     """
-    reader = MockStreamReader()
-    writer = MockStreamWriter(async_callback=async_callback, reader=reader)
+
+    def at_eof(self) -> bool:
+        return not self.sd.queue and self.sd._is_closed()
+
+    async def readline(self) -> bytes:
+        while not self.sd.queue:
+            if self.sd._is_closed():
+                return b""
+            self.sd.data_available_event.clear()
+            await self.sd.data_available_event.wait()
+        data = self.sd.queue.popleft()
+        if not self.sd.queue:
+            self.sd.data_available_event.clear()
+        return data
+
+    async def readuntil(self, separator: bytes = b"\n") -> bytes:
+        if separator not in self.terminator:
+            raise AssertionError(
+                f"readuntil {separator=} not in required terminator {self.terminator!r}"
+            )
+
+        return await self.readline()
+
+    def create_writer(self) -> MockStreamWriter:
+        return MockStreamWriter(sd=self.sd, terminator=self.terminator)
+
+
+class MockStreamWriter(BaseMockStream):
+    """Minimal mock stream writer that only allows writing terminated data.
+
+    Parameters
+    ----------
+    sd : StreamData
+        Stream data to use; if None create new.
+    terminator : bytes
+        Required terminator. Calls to `write` with data that is not
+        correctly terminated will raise AssertionError.
+
+    Intended to be created `open_mock_connection` for a new pair,
+    or `create_reader` to create a reader that will read from this writer.
+    """
+
+    def close(self) -> None:
+        self.sd.closed_event.set()
+        if self.sibling_sd and not self.sibling_sd._is_closed():
+            self.sibling_sd.closed_event.set()
+
+    def is_closing(self) -> bool:
+        return self.sd._is_closed()
+
+    async def drain(self) -> None:
+        if self.is_closing():
+            return
+        self.sd.data_available_event.set()
+
+    async def wait_closed(self) -> None:
+        await self.sd.closed_event.wait()
+
+    def write(self, data: bytes) -> None:
+        if not data.endswith(self.terminator):
+            raise AssertionError(
+                f"Cannot write {data=}: it must end with {self.terminator!r}"
+            )
+        if self.is_closing():
+            return
+        self.sd.queue.append(data)
+
+    def _set_sibling_data(self, reader: MockStreamReader) -> None:
+        self.sibling_sd = weakref.proxy(reader.sd)
+
+    def create_reader(self) -> MockStreamReader:
+        return MockStreamReader(sd=self.sd, terminator=self.terminator)
+
+
+StreamReaderType: TypeAlias = asyncio.StreamReader | MockStreamReader
+StreamWriterType: TypeAlias = asyncio.StreamWriter | MockStreamWriter
+
+
+def open_mock_connection(
+    terminator=DEFAULT_TERMINATOR,
+) -> tuple[MockStreamReader, MockStreamWriter]:
+    """Create a mock stream reader, writer pair.
+
+    To create a stream that writes to the returned reader,
+    call reader.create_writer, and similarly for the returned writer.
+    """
+    reader = MockStreamReader(terminator=terminator)
+    writer = MockStreamWriter(terminator=terminator)
+    writer._set_sibling_data(reader=reader)
     return (reader, writer)

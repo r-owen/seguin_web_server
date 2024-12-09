@@ -6,6 +6,7 @@
         {display_css}
     </style>
     <title>Loom Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 
 <body id="body">
@@ -17,8 +18,8 @@
             <option>Clear Menu</option>
         </select></div>
         <form class="upload-form">
-            <input type="file" id="file_input" multiple accept=".wif,.dtc" style="display:none;">
-            <input type="button" value="Upload Patterns"  title="Upload .wif or .dtx weaving files.&#10;You can also drag on drop files on the window." onclick="document.getElementById('file_input').click()"/>
+            <input type="file" id="file_input" multiple accept=".wif,.dtx" style="display:none;">
+            <input type="button" value="Upload"  id="upload_patterns" title="Upload .wif or .dtx weaving files.&#10;You can also drag on drop files on the window." onclick="document.getElementById('file_input').click()"/>
         </form>
     </div>
     <p/>
@@ -26,9 +27,9 @@
     <div class="flex-container" id="pattern_display_grid">
         <div><canvas id="canvas"/></div>
         <div class="flex-container" id="pattern_controls_grid">
-            <div id="pick_color_spacer"></div>
-            <div id="pick_color" title="Pick color"></div>
-            <div><button class="button" id="weave_direction" title="Click to change the weave direction">?</button></div>
+            <div id="goto_next_pick_spacer"></div>
+            <div><button type="button" id="goto_next_pick" title="Pick color; click to go to next pick"></button></div>
+            <div><button type="button" id="weave_direction" title="Weave direction; click to change direction">?</button></div>
         </div>
     </div>
 
@@ -37,15 +38,13 @@
         <label id="shafts_raised"/>
     </div>
 
-    <div>
-        <label>Pick </label><label id="pick_number"/>
-        <label id="repeat_number"/>
-    </div>      
-
     <form action="" id="jump_to_pick_form">
-        <label>Jump to pick</label>
-        <input type="number" id="jump_to_pick" autocomplete="off" title="Specify the pick number for the next shed."/>
-        <button>Jump</button>
+        <label>Pick</label>
+        <input size="5" id="pick_number" inputmode="decimal" title="Specify the pick number to jump to."/>
+        <label id="total_picks"> of ?: repeat </label>
+        <input size="3" id="repeat_number" inputmode="decimal" title="Specify the repeat number to jump to."/>
+        <button type="submit" id="jump_to_pick_submit">Jump</button>
+        <button type="button" id="jump_to_pick_reset">Reset</button>
     </form>
 
     <div>
@@ -53,17 +52,22 @@
         <label id="status">disconnected</label>
     </div>
 
-    <p/>
+    <div>
+        <label id="command_problem"/>
+    </div>
+
+    <div style="display:{display_debug_controls}">
     <hr>
     <p>Debugging stuff</p>
     
     <form action="" id="oob_command_form">
         <label>Command mock loom</label>
-        <input type="text" id="outOfBandCommand" autocomplete="off" title="Commands are:&#10;d=change direction&#10;n=next shed&#10;e=toggle mock loom error state&#10;q=quit mock loom"/>
-        <button>Submit</button>
+        <input type="text" size="1" id="outOfBandCommand" autocomplete="off" title="Commands are:&#10;d=change direction&#10;n=next shed&#10;e=toggle mock loom error state&#10;q=quit mock loom"/>
+        <button type="submit">Submit</button>
     </form>
 
     <div><label>Message from server: </label><label id='message'/></div>
+    </div>
     <script>
         {display_js}
     </script>

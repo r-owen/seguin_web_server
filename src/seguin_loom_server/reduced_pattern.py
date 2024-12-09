@@ -127,7 +127,7 @@ def reduced_pattern_from_pattern_data(name: str, data: PatternData) -> ReducedPa
         # Compute a scaled version of the color table, where each
         # scaled r,g,b value is in range 0-255 (0-0xff) inclusive
         min_color = data.color_range[0]
-        color_scale = (data.color_range[1] - min_color) / 255
+        color_scale = 255 / (data.color_range[1] - min_color)
         # Note: PatternData promises that color_table
         # keys are 1, 2, ...N, with no missing keys,
         # so we can ignore the keys and just use the values.

@@ -14,20 +14,20 @@ async def create_mock_loom() -> MockLoom:
         async with asyncio.timeout(1):
             reply = await read_reply(loom)
             assert expected_reply == reply
-    assert not loom.cmd_receiver.is_closing()
-    assert not loom.reply_sender.at_eof()
+    assert not loom.cmd_writer.is_closing()
+    assert not loom.reply_reader.at_eof()
     return loom
 
 
 async def read_reply(loom: MockLoom, timeout: float = 1) -> bytes:
     async with asyncio.timeout(timeout):
-        return await loom.reply_sender.readline()
+        return await loom.reply_reader.readline()
 
 
 async def write_command(loom: MockLoom, command: bytes, timeout: float = 1) -> None:
-    loom.cmd_receiver.write(command)
+    loom.cmd_writer.write(command)
     async with asyncio.timeout(timeout):
-        await loom.cmd_receiver.drain()
+        await loom.cmd_writer.drain()
 
 
 async def test_get_status() -> None:
@@ -59,7 +59,10 @@ async def test_raise_shafts() -> None:
 async def test_oob_change_direction() -> None:
     loom = await create_mock_loom()
     for expected_direction in (1, 0, 1, 0, 1):
-        await write_command(loom, b"=#d\r")
+        cmdchar = "d"
+        if expected_direction == 0:
+            cmdchar = cmdchar.upper()
+        await write_command(loom, f"=#{cmdchar}\r".encode())
         reply = await read_reply(loom)
         assert reply == f"=u{expected_direction:d}\r".encode()
     assert not loom.done_task.done()
@@ -67,8 +70,11 @@ async def test_oob_change_direction() -> None:
 
 async def test_oob_next_pick() -> None:
     loom = await create_mock_loom()
-    for _ in range(4):
-        await write_command(loom, b"=#n\r")
+    for i in range(4):
+        cmdchar = "n"
+        if i == 0:
+            cmdchar = cmdchar.upper()
+        await write_command(loom, f"=#{cmdchar}\r".encode())
         reply = await read_reply(loom)
         assert reply == b"=s5\r"
     assert not loom.done_task.done()
@@ -79,7 +85,10 @@ async def test_oob_toggle_error() -> None:
     for i in range(1, 5):
         expected_error = bool(i % 2)
         expected_status_word = 0x01 | (0x08 if expected_error else 0)
-        await write_command(loom, b"=#e\r")
+        cmdchar = "e"
+        if i == 0:
+            cmdchar = cmdchar.upper()
+        await write_command(loom, f"=#{cmdchar}\r".encode())
         assert loom.error_flag == expected_error
         reply = await read_reply(loom)
         assert reply == f"=s{expected_status_word:x}\r".encode()
@@ -91,5 +100,5 @@ async def test_oob_quit() -> None:
     await write_command(loom, b"=#q\r")
     async with asyncio.timeout(1):
         await loom.done_task
-    assert loom.cmd_receiver.is_closing()
-    assert loom.reply_sender.at_eof()
+    assert loom.cmd_writer.is_closing()
+    assert loom.reply_reader.at_eof()

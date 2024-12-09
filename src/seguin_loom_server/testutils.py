@@ -3,6 +3,7 @@ __all__ = ["create_test_client"]
 import collections.abc
 import contextlib
 import pathlib
+import sys
 from types import SimpleNamespace
 from typing import Any, TypeAlias
 
@@ -37,6 +38,7 @@ def create_test_client(
     upload_patterns : collections.abc.Iterable[pathlib.Path] | None
         Initial patterns to upload, if any.
     """
+    sys.argv = ["testutils", "mock", "--verbose"]
     with TestClient(main.app) as client:
         with client.websocket_connect("/ws") as websocket:
 

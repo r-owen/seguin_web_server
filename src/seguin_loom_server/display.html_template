@@ -18,7 +18,7 @@
         </select></div>
         <form class="upload-form">
             <input type="file" id="file_input" multiple accept=".wif,.dtc" style="display:none;">
-            <input type="button" value="Upload Patterns"  title="Upload .wif or .dtx weaving files.&#10;You can also drag on drop files on the window." onclick="document.getElementById('file_input').click()"/>
+            <input type="button" value="Upload Patterns"  id="upload_patterns" title="Upload .wif or .dtx weaving files.&#10;You can also drag on drop files on the window." onclick="document.getElementById('file_input').click()"/>
         </form>
     </div>
     <p/>

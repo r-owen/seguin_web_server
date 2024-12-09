@@ -1,22 +1,27 @@
+__all__ = ["MockLoom"]
+
 import asyncio
 
 from .mock_streams import open_mock_connection
 
-"""Mock a Sequin loom's USB port.
+DIRECTION_NAMES = {True: "weave", False: "unweave"}
 
-Accept commands from sys.stdin
-"""
-
-dir_names = {True: "weave", False: "unweave"}
-
-Terminator = "\r"
+TERMINATOR = "\r"
 
 
 class MockLoom:
+    """Simulate a Seguin dobby loom.
+
+    The user controls this loom by:
+
+    * writing commands to self.cmd_writer, a mock asyncio.StreamWriter
+    * reading from self.reply_reader, a mock asyncio.StreamWriter
+    """
+
     def __init__(self, verbose: bool = True) -> None:
         self.verbose = verbose
         self.weave_forward = True
-        self.reply_sender, self.cmd_receiver = open_mock_connection(
+        self.reply_reader, self.cmd_writer = open_mock_connection(
             async_callback=self.handle_command
         )
         self.done_task: asyncio.Future = asyncio.Future()
@@ -77,12 +82,8 @@ class MockLoom:
                     return
                 self.report_direction()
             case "V":
-                if self.verbose:
-                    print("MockLoom: get version")
                 self.reply("=v001")
             case "Q":
-                if self.verbose:
-                    print("MockLoom: request state")
                 self.report_state()
             case "#":
                 # Out of band command specific to the mock loom.
@@ -91,24 +92,28 @@ class MockLoom:
                     case "d":
                         self.weave_forward = not self.weave_forward
                         self.report_direction()
-                        print(
-                            "MockLoom: oob toggle weave direction: "
-                            f"{dir_names[self.weave_forward]}"
-                        )
+                        if self.verbose:
+                            print(
+                                "MockLoom: oob toggle weave direction: "
+                                f"{DIRECTION_NAMES[self.weave_forward]}"
+                            )
                     case "e":
                         self.error_flag = not self.error_flag
-                        print(
-                            f"MockLoom: oob toggle loom error flag to {self.error_flag}"
-                        )
+                        if self.verbose:
+                            print(
+                                f"MockLoom: oob toggle loom error flag to {self.error_flag}"
+                            )
                         self.report_state()
                     case "n":
-                        print("MockLoom: oob request next pick")
+                        if self.verbose:
+                            print("MockLoom: oob request next pick")
                         self.weave_cycle_completed = True
                         self.report_state()
                     case "q":
-                        print("MockLoom: oob quit command")
-                        if self.cmd_receiver is not None:
-                            self.cmd_receiver.close()
+                        if self.verbose:
+                            print("MockLoom: oob quit command")
+                        if self.cmd_writer is not None:
+                            self.cmd_writer.close()
                         self.done_task.set_result(None)
                     case _:
                         print(f"MockLoom: unrecognized oob command: {cmd_data!r}")
@@ -117,7 +122,7 @@ class MockLoom:
         """Issue the specified reply, which should not be terminated"""
         if self.verbose:
             print(f"MockLoom: send reply {reply!r}")
-        self.reply_sender.appendline(reply + Terminator)
+        self.reply_reader.appendline(reply + TERMINATOR)
 
     def report_direction(self) -> None:
         self.reply(f"=u{int(not self.weave_forward)}")

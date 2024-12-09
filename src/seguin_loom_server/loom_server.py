@@ -13,14 +13,19 @@ from typing import Any, Type
 
 from dtx_to_wif import read_dtx, read_wif
 from fastapi import WebSocket, WebSocketDisconnect
+from serial_asyncio import open_serial_connection  # type: ignore
 
 from . import client_replies
-from .mock_loom import MockLoom, Terminator
+from .mock_loom import TERMINATOR, MockLoom
 from .mock_streams import MockStreamReader, MockStreamWriter
 from .reduced_pattern import Pick, ReducedPattern, reduced_pattern_from_pattern_data
 
 # The maximum number of patterns that can be in the history
 MAX_PATTERNS = 20
+
+BAUD_RATE = 9600  # baud rate of loom's FTDI serial port
+
+MOCK_PORT_NAME = "mock"
 
 
 class CloseCode(enum.IntEnum):
@@ -58,15 +63,16 @@ class LoomServer:
 
     Parameters
     ----------
-    emulate_loom : bool
-        If True, connect to a mock loom, instead of a real loom.
+    serial_port : str
+        The name of the serial port, e.g. "/dev/tty0".
+        If the name is "mock" then use a mock loom.
     verbose : bool
         If True, print diagnostic information to stdout.
     """
 
-    def __init__(self, emulate_loom: bool, verbose: bool) -> None:
+    def __init__(self, serial_port: str, verbose: bool) -> None:
+        self.serial_port = serial_port
         self.websocket: WebSocket | None = None
-        self.emulate_loom = emulate_loom
         self.verbose = verbose
         self.connecting = False
         self.disconnecting = False
@@ -137,12 +143,14 @@ class LoomServer:
         try:
             self.connecting = True
             await self.report_connection_state()
-            if self.emulate_loom:
-                self.mock_loom = MockLoom(verbose=True)
-                self.loom_reader = self.mock_loom.reply_sender
-                self.loom_writer = self.mock_loom.cmd_receiver
+            if self.serial_port == MOCK_PORT_NAME:
+                self.mock_loom = MockLoom(verbose=self.verbose)
+                self.loom_reader = self.mock_loom.reply_reader
+                self.loom_writer = self.mock_loom.cmd_writer
             else:
-                raise RuntimeError("Real loom connection not yet supported")
+                self.loom_reader, self.loom_writer = await open_serial_connection(
+                    url=self.serial_port, baudrate=BAUD_RATE
+                )
         finally:
             self.connecting = False
             await self.report_connection_state()
@@ -214,7 +222,7 @@ class LoomServer:
         """
         if self.loom_writer is None or self.loom_writer.is_closing():
             raise RuntimeError("Cannot write to the loom: no connection.")
-        cmd_bytes = (cmd + Terminator).encode()
+        cmd_bytes = (cmd + TERMINATOR).encode()
         if self.verbose:
             print(f"Sending command to loom: {cmd_bytes!r}")
         self.loom_writer.write(cmd_bytes)

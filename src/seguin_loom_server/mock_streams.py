@@ -78,20 +78,19 @@ class MockStreamWriter:
         self.queue: Deque[bytes] = collections.deque()
         self.async_callback = async_callback
         self.reader = reader
-        self.isopen = True
+        self.closed_event = asyncio.Event()
 
     def _assert_open(self) -> None:
-        if not self.isopen:
+        if self.closed_event.is_set():
             raise RuntimeError("MockStreamWriter is closed")
 
     def close(self) -> None:
-        print("MockStreamWriter.close()")
-        self.isopen = False
+        self.closed_event.set()
         if self.reader is not None:
             self.reader.isopen = False
 
     def is_closing(self) -> bool:
-        return not self.isopen
+        return self.closed_event.is_set()
 
     async def drain(self) -> None:
         self._assert_open()
@@ -100,10 +99,9 @@ class MockStreamWriter:
             await self.async_callback(str_data)
 
     async def wait_closed(self) -> None:
-        return
+        await self.closed_event.wait()
 
     def write(self, data: bytes) -> None:
-        print(f"MockStreamWriter.write({data!r}); {self.isopen=}")
         self._assert_open()
         self.queue.append(data)
 

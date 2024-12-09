@@ -325,11 +325,9 @@ class LoomClient {
         var repeatNumberElt = document.getElementById("repeat_number")
         var pickNumberElt = document.getElementById("pick_number")
         if (this.weavingPattern) {
-            repeatNumberElt.textContent = "Repeat " + this.weavingPattern.repeat_number
-            pickNumberElt.textContent = this.weavingPattern.pick_number + " of " + this.weavingPattern.picks.length
+            pickNumberElt.textContent = this.weavingPattern.pick_number + " of " + this.weavingPattern.picks.length + "; repeat " + this.weavingPattern.repeat_number
         } else {
             pickNumberElt.textContent = " "
-            repeatNumberElt.textContent = " "
         }
     }
 

@@ -12,6 +12,74 @@ datadir = pathlib.Path(__file__).parent / "data"
 all_pattern_paths = list(datadir.glob("*.wif")) + list(datadir.glob("*.dtx"))
 
 
+def test_goto_next_pick() -> None:
+    pattern_name = all_pattern_paths[3].name
+
+    with create_test_client(upload_patterns=all_pattern_paths[2:5]) as (
+        client,
+        websocket,
+    ):
+        websocket.send_json(dict(type="select_pattern", name=pattern_name))
+        reply = receive_dict(websocket)
+        assert reply["type"] == "ReducedPattern"
+        num_picks_in_pattern = len(reply["picks"])
+        reply = receive_dict(websocket)
+        assert reply == dict(type="CurrentPickNumber", pick_number=0, repeat_number=1)
+
+        expected_pick_number = 0
+        expected_repeat_number = 1
+        while not (expected_repeat_number == 2 and expected_pick_number == 3):
+            expected_pick_number += 1
+            if expected_pick_number == num_picks_in_pattern + 1:
+                expected_pick_number = 0
+                expected_repeat_number += 1
+
+            websocket.send_json(dict(type="goto_next_pick"))
+            reply = receive_dict(websocket)
+            assert reply == dict(
+                type="CurrentPickNumber",
+                pick_number=expected_pick_number,
+                repeat_number=expected_repeat_number,
+            )
+
+        expected_pick_number -= 1
+        websocket.send_json(
+            dict(
+                type="weave_direction",
+                forward=False,
+            )
+        )
+        reply = receive_dict(websocket)
+        assert reply == dict(
+            type="WeaveDirection",
+            forward=False,
+        )
+        reply = receive_dict(websocket)
+        assert reply == dict(
+            type="CurrentPickNumber",
+            pick_number=expected_pick_number,
+            repeat_number=expected_repeat_number,
+        )
+
+        while not (
+            expected_repeat_number == 0
+            and expected_pick_number == num_picks_in_pattern - 2
+        ):
+            expected_pick_number -= 1
+            print(f"{expected_pick_number=}, {expected_repeat_number=}")
+            if expected_pick_number < 0:
+                expected_pick_number = num_picks_in_pattern
+                expected_repeat_number -= 1
+
+            websocket.send_json(dict(type="goto_next_pick"))
+            reply = receive_dict(websocket)
+            assert reply == dict(
+                type="CurrentPickNumber",
+                pick_number=expected_pick_number,
+                repeat_number=expected_repeat_number,
+            )
+
+
 def test_jump_to_pick() -> None:
     pattern_name = all_pattern_paths[3].name
 
@@ -27,11 +95,20 @@ def test_jump_to_pick() -> None:
         assert reply == dict(type="CurrentPickNumber", pick_number=0, repeat_number=1)
 
         for pick_number in (0, 1, num_picks_in_pattern // 3, num_picks_in_pattern):
-            websocket.send_json(dict(type="jump_to_pick", pick_number=pick_number))
-            reply = receive_dict(websocket)
-            assert reply == dict(
-                type="CurrentPickNumber", pick_number=pick_number, repeat_number=1
-            )
+            for repeat_number in (-1, 0, 1):
+                websocket.send_json(
+                    dict(
+                        type="jump_to_pick",
+                        pick_number=pick_number,
+                        repeat_number=repeat_number,
+                    )
+                )
+                reply = receive_dict(websocket)
+                assert reply == dict(
+                    type="CurrentPickNumber",
+                    pick_number=pick_number,
+                    repeat_number=repeat_number,
+                )
 
 
 def test_oobcommand() -> None:
@@ -86,8 +163,13 @@ def test_oobcommand() -> None:
             repeat_number=expected_repeat_number,
         )
 
-        # Now go backwards to the beginning
-        while not (expected_pick_number == 0 and expected_repeat_number == 1):
+        # Now go backwards at least two picks past the beginning
+        # (at least two, so that changing direction to forward
+        # keeps us in repeat number 0).
+        end_pick_number = num_picks_in_pattern - 2
+        while not (
+            expected_pick_number == end_pick_number and expected_repeat_number == 0
+        ):
             expected_pick_number -= 1
             if expected_pick_number < 0:
                 expected_pick_number += num_picks_in_pattern + 1
@@ -110,8 +192,8 @@ def test_oobcommand() -> None:
                     )
                 else:
                     raise AssertionError(f"Unexpected reply type in {reply=}")
-        assert expected_pick_number == 0
-        assert expected_repeat_number == 1
+        assert expected_pick_number == end_pick_number
+        assert expected_repeat_number == 0
 
         # Change direction to forward
         websocket.send_json(dict(type="oobcommand", command="d"))
@@ -184,6 +266,8 @@ def test_upload() -> None:
 
 
 def test_weave_direction() -> None:
+    # TO DO: expand this test to test commanding the same direction
+    # multiple times in a row, once I know what mock loom ought to do.
     pattern_name = all_pattern_paths[1].name
 
     with create_test_client(upload_patterns=all_pattern_paths[0:4]) as (
@@ -194,10 +278,14 @@ def test_weave_direction() -> None:
         reply = receive_dict(websocket)
         assert reply["type"] == "ReducedPattern"
         assert reply["name"] == pattern_name
+        num_picks_in_pattern = len(reply["picks"])
         reply = receive_dict(websocket)
         assert reply == dict(type="CurrentPickNumber", pick_number=0, repeat_number=1)
 
-        for forward, desired_pick_number in ((True, 1), (False, 0), (False, 0)):
+        for forward, desired_pick_number, desired_repeat_number in (
+            (False, num_picks_in_pattern, 0),
+            (True, 0, 1),
+        ):
             websocket.send_json(dict(type="weave_direction", forward=forward))
             reply = receive_dict(websocket)
             assert reply == dict(type="WeaveDirection", forward=forward)
@@ -205,5 +293,5 @@ def test_weave_direction() -> None:
             assert reply == dict(
                 type="CurrentPickNumber",
                 pick_number=desired_pick_number,
-                repeat_number=1,
+                repeat_number=desired_repeat_number,
             )

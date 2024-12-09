@@ -1,24 +1,34 @@
 # Web server that controls a Séguin dobby loom.
 
-The intent is to allow the user to control a loom using any device that has a web client, such as a tablet or phone.
+This server is intended to allow you to control your loom from any phone, tablet or other device that has wifi and a web browser.
 
-This is preliminary code that only talks to a loom simulator
-and I have not yet served this code on PyPY so some of these instructions are aspirational.
+This server must run on a computer that is connected (via a USB cable) to your loom.
+This code has only been tested on macOS but should also work on any flavor of linux, and may also run on Windows.
+
+Warning: this software has not yet been tested on a real loom.
+I will do that once I have access to a loom (I am trying to order one now).
 
 ## Installing and Running the Web Server
 
 * You need to run the server on a computer that you can connect to the loom.
-  A laptop or Raspberry Pi (probably 4 or better) should be fine.
+  A macOS laptop or Raspberry Pi (probably 4 or better) should be fine.
+  A Windows computer may also work.
 * Install Python 3.11 or later on that computer.
 * Install this package on that computer:
 
     pip install seguin_loom_server
 
-* Connect your computer to the loom with a USB cable.
-* Turn on the loom.
+* You will need to determine the name of the port that your computer is using to connect to the loom.
+  To do this on macOS or linux:
+
+  * Run the command `ls /dev/tty.usb*` to see USB ports already in use.
+  * Connect your computer to the loom with a USB cable
+  * Turn on the loom and wait a bit to let it connect.
+  * Run the command `ls /dev/tty.usb*` again. There should be one new entry, which is the name you are looking for.
+
 * Run the web server:
 
-    run_seguin_loom
+    run_seguin_loom *port_name*
   
 * You may stop the web server by typing ctrl-C (possibly twice). Your uploaded patterns will be lost.
 
@@ -36,16 +46,29 @@ You are now ready to weave.
 
 * The pattern display shows woven fabric below and potential future fabric above.
   (This is the opposite of the usual US drawdown).
-* The direction button just to the right of the pattrn display shows the weaving direction.
-  A green down arrow indicates weaving and a red up arrow indicates unweaving.
-  Press the button to change the direction (or press the "UNW" button on the loom's control panel).
-* To advance the loom simulator to the next shed, use the "Command mock loom" field:
-  type "n" followed by carriage return.
-  You can also change directions with "d" and toggle the error state of the loom simulator with "e".
+* There are two buttons to the right of the pattern display:
+
+    * The upper button shows the current pick color (blank if pick 0).
+      Press it to advance to the next pick. 
+      You may also press the loom's pedal (which is usually more convenient) or the "PICK"" button on the loom's control panel.
+  
+    * The lower button shows whether you are weaving (green down arrow) or unweaving (red up arrow).
+      The arrow points in the direction cloth is moving through the loom.
+      Press this button to change the direction.
+      You may also press the "UNW" button on the loom's control panel.
+
+* To jump to a different pick and/or repeat:
+
+    * Enter the desired value in the pick and repeat boxes.
+      The boxes will turn pink and the Jump and Reset buttons will be enabled.
+    * Press the "Jump" button (or type carriage return) to jump.
+      Note: if a box is empty when you press "Jump", it will not change that value.
+    * Press the "Reset" button to reset the displayed values.
+    * Advancing to the next pick or choosing a new pattern will also reset the displayed values.
+
 * The server will automatically repeat patterns if you weave or unweave beyond the end. See below for details.
-* All the controls have help.
-  If you have a mouse or trackpad, hover the pointer over a control to see help.
-  If you have a touch screen, press and hold on a control until the help appears.
+* All the controls have help, though it is only visible if you have a pointer (not on a phone or other touchscreen-only device).
+  Hover over the control to see the help.
 
 ## Automatic Pattern Repeat
 
@@ -53,7 +76,7 @@ If you advance past the end of the pattern, the display returns to pick 0 (no sh
 The fact that no shafts are raised is meant as a warning that you have reached the end.
 Continue advancing to weave the next repeat.
 
-Unweaving also requires an extra advance to unweave past the beginning of one repeat and start unweaving the next repeat.
+Unweaving also requires an extra advance, to unweave past the beginning of one repeat and start unweaving the next repeat.
 
 ## Remembering Patterns
 
@@ -63,10 +86,18 @@ However, at present this information is only contained in memory. It will be los
 
 ## Road Map
 
-* Add support for talking to a real loom (though I will not be able to properly test this until I can buy a loom).
+* Test this software on a real loom.
+* Make the design look better on a phone.
 * Add support for other languages.
 * Use a database to store patterns and the current pick.
 
 ## Developer Tips
 
-* Run "pre-commit install" before working on this package.
+* Download the source code from [github](https://github.com/r-owen/seguin_loom_server.git), or make a fork and download that.
+* Inside the directory, issue the following commands:
+
+    * `pip install -e .` to install an editable version of the package.
+    * `pre-commit install` to activate the pre-commit hooks.
+
+* You may run a mock loom by starting the server with: `run_seguin_loom mock`
+* The web page will show a few extra controls for debugging.

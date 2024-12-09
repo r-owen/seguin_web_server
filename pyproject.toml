@@ -13,6 +13,7 @@ readme = "README.md"
 dependencies = [
   "fastapi >= 0.115",
   "dtx_to_wif >= 3.0",
+  "pyserial-asyncio >= 0.6",
 ]
 authors = [
   { name="Russell Owen", email="r3owen@gmail.com" },
@@ -31,7 +32,7 @@ dev = [
   "pytest-asyncio >= 0.24",
 ]
 
-# Needed due to including py.typed below
+# Needed due to including package data below
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -45,7 +46,7 @@ where = ["src"]
 ]
 
 [project.scripts]
-run_seguin_loom = "seguin_loom_server.main:start_seguin_loom_server"
+run_seguin_loom = "seguin_loom_server.main:run_seguin_loom"
 
 [project.urls]
 Homepage = "https://github.com/r-owen/seguin_loom_server"

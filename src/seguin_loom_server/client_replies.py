@@ -13,6 +13,23 @@ class ConnectionStateEnum(enum.IntEnum):
     DISCONNECTING = 3
 
 
+class MessageSeverityEnum(enum.IntEnum):
+    """Severity for text messages"""
+
+    INFO = 1
+    WARNING = 2
+    ERROR = 3
+
+
+@dataclasses.dataclass
+class CommandProblem:
+    """A problem with a command from the client"""
+
+    type: str = dataclasses.field(init=False, default="CommandProblem")
+    message: str
+    severity: MessageSeverityEnum
+
+
 @dataclasses.dataclass
 class CurrentPickNumber:
     """The current pick and repeat numbers"""
@@ -23,19 +40,12 @@ class CurrentPickNumber:
 
 
 @dataclasses.dataclass
-class ConnectionState:
+class LoomConnectionState:
     """The state of the server's connection to the loom"""
 
-    type: str = dataclasses.field(init=False, default="ConnectionState")
+    type: str = dataclasses.field(init=False, default="LoomConnectionState")
     state: ConnectionStateEnum
-
-
-@dataclasses.dataclass
-class PatternNames:
-    """The list of loaded patterns (including the current pattern)"""
-
-    type: str = dataclasses.field(init=False, default="PatternNames")
-    names: list[str]
+    reason: str = ""
 
 
 @dataclasses.dataclass
@@ -63,6 +73,14 @@ class LoomState:
             cycle_complete=bool(state_word & 0x04),
             error=bool(state_word & 0x08),
         )
+
+
+@dataclasses.dataclass
+class PatternNames:
+    """The list of loaded patterns (including the current pattern)"""
+
+    type: str = dataclasses.field(init=False, default="PatternNames")
+    names: list[str]
 
 
 @dataclasses.dataclass

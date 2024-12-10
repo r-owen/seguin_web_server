@@ -91,18 +91,22 @@ class MockLoom:
                     if cmd_data == "0":
                         self.weave_forward = True
                         if self.verbose:
-                            print("MockLoom: weave forward commanded by software")
+                            print("MockLoom: weave forward, commanded by software")
                     elif cmd_data == "1":
                         self.weave_forward = False
                         if self.verbose:
-                            print("MockLoom: weave backwards commanded by software")
+                            print("MockLoom: weave backwards, commanded by software")
                     else:
                         print(f"MockLoom: invalid command {cmd!r}: arg nmust be 0 or 1")
                         return
                     await self.report_direction()
                 case "V":
+                    if self.verbose:
+                        print("MockLoom: get version")
                     await self.reply("=v001")
                 case "Q":
+                    if self.verbose:
+                        print("MockLoom: get state")
                     await self.report_state()
                 case "#":
                     # Out of band command specific to the mock loom.

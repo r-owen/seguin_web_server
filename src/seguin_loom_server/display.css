@@ -2,8 +2,24 @@
     background: #ddd;
 }
 
+* {
+    font-size: 20pt
+}
+
 #canvas {
     border: 1px solid #000000;
+}
+
+input {
+    font-size: 80%
+}
+
+button {
+    font-size: 80%
+}
+
+#upload_patterns {
+    font-size: 80%
 }
 
 #pick_color_spacer {
@@ -23,10 +39,6 @@
     width: 200px;
     /* the following doesn't seem to do anything, at least on on macOS Safari */
     text-overflow: ellipsis;
-}
-
-#weave_direction {
-    font-size: 22px
 }
 
 #pattern_select_grid {

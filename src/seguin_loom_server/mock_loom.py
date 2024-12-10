@@ -51,7 +51,6 @@ class MockLoom:
     async def handle_commands_loop(self) -> None:
         while True:
             cmdbytes = await self.command_stream.readline()
-            print("MockLoom read command", cmdbytes)
             if not cmdbytes:
                 break
             cmd = cmdbytes.decode().rstrip()

@@ -17,7 +17,7 @@ from serial_asyncio import open_serial_connection  # type: ignore
 
 from . import client_replies
 from .mock_loom import TERMINATOR, MockLoom
-from .mock_streams import MockStreamReader, MockStreamWriter
+from .mock_streams import MockStream
 from .reduced_pattern import Pick, ReducedPattern, reduced_pattern_from_pattern_data
 
 # The maximum number of patterns that can be in the history
@@ -78,8 +78,8 @@ class LoomServer:
         self.disconnecting = False
         self.client_connected = False
         self.mock_loom: MockLoom | None = None
-        self.loom_reader: asyncio.StreamReader | MockStreamReader | None = None
-        self.loom_writer: asyncio.StreamWriter | MockStreamWriter | None = None
+        self.loom_reader: asyncio.StreamReader | MockStream | None = None
+        self.loom_writer: asyncio.StreamWriter | MockStream | None = None
         self.read_client_task: asyncio.Future = asyncio.Future()
         self.read_loom_task: asyncio.Future = asyncio.Future()
         self.done_task: asyncio.Future = asyncio.Future()
@@ -145,8 +145,8 @@ class LoomServer:
             await self.report_connection_state()
             if self.serial_port == MOCK_PORT_NAME:
                 self.mock_loom = MockLoom(verbose=self.verbose)
-                self.loom_reader = self.mock_loom.reply_reader
-                self.loom_writer = self.mock_loom.cmd_writer
+                self.loom_reader = self.mock_loom.reply_stream
+                self.loom_writer = self.mock_loom.command_stream
             else:
                 self.loom_reader, self.loom_writer = await open_serial_connection(
                     url=self.serial_port, baudrate=BAUD_RATE
@@ -386,6 +386,8 @@ class LoomServer:
             if stop_read_client:
                 self.read_client_task.cancel()
             self.loom_writer.close()
+        if self.mock_loom is not None:
+            await self.mock_loom.close()
         if not self.done_task.done():
             self.done_task.set_result(None)
 

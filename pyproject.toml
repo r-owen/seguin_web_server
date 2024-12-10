@@ -32,7 +32,7 @@ dev = [
   "pytest-asyncio >= 0.24",
 ]
 
-# Needed due to including py.typed below
+# Needed due to including package data below
 [tool.setuptools.packages.find]
 where = ["src"]
 

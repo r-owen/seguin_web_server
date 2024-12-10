@@ -1,7 +1,5 @@
 import asyncio
 
-import pytest
-
 from seguin_loom_server import mock_streams
 
 TEST_BYTES = (
@@ -12,111 +10,98 @@ TEST_BYTES = (
 
 
 async def test_open_mock_connection() -> None:
-    written_lines: list[str] = []
-
-    async def writer_callback(data: str) -> None:
-        written_lines.append(data)
-
-    reader, writer = mock_streams.open_mock_connection(async_callback=writer_callback)
+    reader, writer = mock_streams.open_mock_connection()
 
     # Check initial state
-    assert reader.isopen
+    # Note: reader and writer are both instances of MockStream,
+    # which acts as both a reader and a writer. So test some attributes
+    # of each that a real reader or real writer would not have
+    assert not reader.is_closing()
     assert not reader.at_eof()
-    assert not writer.closed_event.is_set()
     assert not writer.is_closing()
+    assert not writer.at_eof()
 
     # Start a task that awaits wait_closed,
     # so we can see if it finishes when we close the writer.
-    close_watcher = CloseWatcher(writer)
-    # Give the watcher's task a chance to start before chacking its state
+    reader_closed_watcher = StreamClosedWatcher(reader)
+    writer_closed_watcher = StreamClosedWatcher(writer)
+    # Give watchers tasks a chance to start before chacking their state
     await asyncio.sleep(0)
-    assert not close_watcher.wait_done
+    assert not reader_closed_watcher.wait_done
+    assert not writer_closed_watcher.wait_done
 
     # Close the writer, which also closes the reader
     writer.close()
-    assert not reader.isopen
+    assert reader.is_closing()
     assert reader.at_eof()
-    assert writer.closed_event.is_set()
     assert writer.is_closing()
-    # Give the watcher's task a chance to start before chacking its state
+    assert writer.at_eof()
+    # Give watchers tasks a chance to finish before chacking their state
     await asyncio.sleep(0)
-    assert close_watcher.wait_done
+    assert reader_closed_watcher.wait_done
+    assert writer_closed_watcher.wait_done
 
     # wait_closed should have no further effect
     await writer.wait_closed()
-    assert not reader.isopen
+    assert reader.is_closing()
     assert reader.at_eof()
-    assert writer.closed_event.is_set()
     assert writer.is_closing()
+    assert writer.at_eof()
 
 
-async def test_reader() -> None:
-    reader = mock_streams.MockStreamReader()
-    assert reader.isopen
-    assert not reader.at_eof()
-    assert len(reader.queue) == 0
+async def test_stream() -> None:
+    stream = mock_streams.MockStream()
+    assert not stream.is_closing()
+    assert not stream.at_eof()
+    assert len(stream.queue) == 0
 
-    # Alternate between appendline and readline
+    # Read after each write
     for data in TEST_BYTES:
-        datastr = data.decode()
-        reader.appendline(datastr)
-        assert len(reader.queue) == 1
-        read_data = await reader.readline()
+        stream.write(data)
+        await stream.drain()
+        assert len(stream.queue) == 1
+        read_data = await stream.readline()
         assert read_data == data
-        assert reader.isopen
-        assert not reader.at_eof()
-        assert len(reader.queue) == 0
+        assert not stream.is_closing()
+        assert not stream.at_eof()
+        assert len(stream.queue) == 0
 
-    # Queue up a batch of readline,
+    # Queue up a batch of writes,
+    # then drain them all at once,
     # then read all of them with readline
+    for i, data in enumerate(TEST_BYTES):
+        stream.write(data)
+        assert len(stream.queue) == i + 1
+    for i, data in enumerate(TEST_BYTES):
+        assert stream.queue[i] == data
+    await stream.drain()
     for data in TEST_BYTES:
-        datastr = data.decode()
-        reader.appendline(datastr)
-    assert len(reader.queue) == len(TEST_BYTES)
-    for i, data in enumerate(TEST_BYTES):
-        assert reader.queue[i] == data
-
-    for i, data in enumerate(TEST_BYTES):
-        read_data = await reader.readline()
+        read_data = await stream.readline()
         assert read_data == data
-        assert reader.isopen
-        assert not reader.at_eof()
-    assert len(reader.queue) == 0
+        assert not stream.is_closing()
+        assert not stream.at_eof()
+    assert len(stream.queue) == 0
 
-
-async def test_mock_writer() -> None:
-    written_lines: list[str] = []
-
-    async def writer_callback(data: str) -> None:
-        written_lines.append(data)
-
-    writer = mock_streams.MockStreamWriter(async_callback=writer_callback)
-    assert not writer.closed_event.is_set()
-
-    # Test write+drain
+    # Queue up a batch of writes, draining after each write,
+    # then read all data.
+    for i, data in enumerate(TEST_BYTES):
+        stream.write(data)
+        await stream.drain()
+        assert len(stream.queue) == i + 1
+    for i, data in enumerate(TEST_BYTES):
+        assert stream.queue[i] == data
     for data in TEST_BYTES:
-        writer.write(data)
-        await writer.drain()
-        assert written_lines[-1] == data.decode().rstrip()
-
-    # Test that data is not written until drain is called
-    written_lines = []
-    for data in TEST_BYTES:
-        writer.write(data)
-    assert len(written_lines) == 0
-    await writer.drain()
-    assert written_lines == [item.decode().rstrip() for item in TEST_BYTES]
-
-    writer.close()
-    with pytest.raises(RuntimeError):
-        writer.write(data)
-    assert writer.closed_event.is_set()
+        read_data = await stream.readline()
+        assert read_data == data
+        assert not stream.is_closing()
+        assert not stream.at_eof()
+    assert len(stream.queue) == 0
 
 
-class CloseWatcher:
+class StreamClosedWatcher:
     """Await writer.wait_closed() and wait_done=True when seen"""
 
-    def __init__(self, writer: mock_streams.MockStreamWriter) -> None:
+    def __init__(self, writer: mock_streams.MockStream) -> None:
         self.writer = writer
         self.wait_done = False
         self.wait_task = asyncio.create_task(self.do_wait_closed())

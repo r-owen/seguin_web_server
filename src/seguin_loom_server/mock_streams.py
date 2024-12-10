@@ -1,124 +1,98 @@
-__all__ = ["MockStreamReader", "MockStreamWriter", "open_mock_connection"]
+from __future__ import annotations
+
+__all__ = ["MockStream", "open_mock_connection"]
 
 import asyncio
 import collections
-from collections.abc import Awaitable, Callable
+import weakref
 from typing import Deque
 
-# TO DO: when we require Python 3.12 and later, change this to
-# ``type WriterCallbackType = ...``
-# It is not needed in this case, but does add some clarity.
-WriterCallbackType = Callable[[str], Awaitable[None]]
 
+class MockStream:
+    """Minimal mock stream reader/writer that only supports line-oriented data.
 
-class MockStreamReader:
-    """Minimal mock stream reader that only supports readline.
+    Intended to be constructed by `open_mock_connection`,
+    so that each stream can close its sibling.
 
-    Intended to be constructed by `open_mock_connection`.
+    Example of use:
+
+    * A mock server may use a pair of mock streams created by
+      `open_mock_connection`. I suggest names "command_stream"
+      (which the server reads from) and "reply_stream" (which the
+      server writes to).
+    * The client using the mock server will communicate via
+      those same streams, writing commands to "command_stream"
+      and reading replies from "reply_stream".
+      Hence the recommended names, to avoid confusion.
+      (If the server used names "command_reader" and "reply_writer",
+      the client ends up writing to the so-called reader
+      and reading from the so-called writer.)
+    * Either end can close the connection by calling "close"
+      and "wait_closed" on the stream it writes to.
+    * Note that with some extra code to create the streams differently,
+      on demand, you have the option to communicate with the mock server
+      with real streams. In this scenerio you would normally use mock streams,
+      e.g. for most unit tests, but can also run or test with real streams,
+      to make sure you are using the mock streams correctly.
     """
 
     def __init__(self) -> None:
-        self.queue: Deque[bytes] = collections.deque()
+        self.closed_event = asyncio.Event()
         self.data_available_event = asyncio.Event()
+        self.queue: Deque[bytes] = collections.deque()
         self.shaft_word = 0
-        self.isopen = True
+        self.sibling: weakref.ProxyType[MockStream] | None = None
 
-    def appendline(self, str_data: str) -> None:
-        """Append a line of str data to be read by readline.
-
-        This method is not part of the standard API for StreamReader.
-        It is intended for use by the writer to the stream,
-        which is the end not expecting a true StreamReader.
-
-        Parameters
-        ----------
-        str_data : str
-            Data as a str (not bytes). This should be properly terminated
-            as this class only deals with terminated strings. It should also
-            be encodable to bytes using the default encoder.
-        """
-        self.queue.append(str_data.encode())
-        self.data_available_event.set()
+    def _set_sibling(self, stream: MockStream) -> None:
+        self.sibling = weakref.proxy(stream)
 
     def at_eof(self) -> bool:
-        return not self.isopen
+        return self.is_closing()
 
     async def readline(self) -> bytes:
         while not self.queue:
             self.data_available_event.clear()
+            if self.is_closing():
+                return b""
             await self.data_available_event.wait()
-        self.data_available_event.clear()
-        if not self.isopen:
+        if self.is_closing():
             return b""
         data = self.queue.popleft()
+        if not self.queue:
+            self.data_available_event.clear()
         return data
-
-
-class MockStreamWriter:
-    """Minimal mock stream writer that assumes each write is a line.
-
-    Intended to be constructed by `open_mock_connection`.
-
-    Parameters
-    ----------
-    async_callback : callable
-        An async function that will be called when `drain` is called,
-        once for every message written since the last call to `drain`.
-        It receives one positional argument: a line of data as an
-        unterminated str (decoded bytes).
-    reader : MockStreamReader
-        If specified (and `open_mock_connection` does specify it),
-        this writer sets ``reader.isopen`` false when the writer is closed.
-        This makes closing a writer/reader pair more realistic.
-    """
-
-    def __init__(
-        self, async_callback: WriterCallbackType, reader: MockStreamReader | None = None
-    ) -> None:
-        self.queue: Deque[bytes] = collections.deque()
-        self.async_callback = async_callback
-        self.reader = reader
-        self.closed_event = asyncio.Event()
-
-    def _assert_open(self) -> None:
-        if self.closed_event.is_set():
-            raise RuntimeError("MockStreamWriter is closed")
 
     def close(self) -> None:
         self.closed_event.set()
-        if self.reader is not None:
-            self.reader.isopen = False
+        if self.sibling is not None and not self.sibling.closed_event.set():
+            # Avoid infinite recursion
+            sibling, self.sibling = self.sibling, None
+            sibling.close()
 
     def is_closing(self) -> bool:
         return self.closed_event.is_set()
 
     async def drain(self) -> None:
-        self._assert_open()
-        while self.queue:
-            str_data = self.queue.popleft().decode().rstrip()
-            await self.async_callback(str_data)
+        if self.is_closing():
+            return
+        self.data_available_event.set()
 
     async def wait_closed(self) -> None:
         await self.closed_event.wait()
 
     def write(self, data: bytes) -> None:
-        self._assert_open()
+        if self.is_closing():
+            return
         self.queue.append(data)
 
 
-def open_mock_connection(
-    async_callback: WriterCallbackType,
-) -> tuple[MockStreamReader, MockStreamWriter]:
-    """Create a mock stream reader and writer pair.
+def open_mock_connection() -> tuple[MockStream, MockStream]:
+    """Create a mock stream reader, writer pair.
 
-    Parameters
-    ----------
-    async_callback : callable
-        An async function that will be called when `drain` is called,
-        once for every message written since the last call to `drain`.
-        It receives one positional argument: a line of data as an
-        unterminated str (decoded bytes).
+    The pair is connected, so that closing one will close the other.
     """
-    reader = MockStreamReader()
-    writer = MockStreamWriter(async_callback=async_callback, reader=reader)
+    reader = MockStream()
+    writer = MockStream()
+    reader._set_sibling(writer)
+    writer._set_sibling(reader)
     return (reader, writer)

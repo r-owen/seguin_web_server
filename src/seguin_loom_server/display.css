@@ -6,21 +6,13 @@
     border: 1px solid #000000;
 }
 
-input {
-    font-size: 80%
-}
-
-button {
-    font-size: 80%
-}
-
-#upload_patterns {
-    font-size: 80%
-}
-
 #pick_color_spacer {
     height: 30px;
     opacity: 0;
+}
+
+#weave_direction {
+    font-size: 120%;
 }
 
 #pick_color {

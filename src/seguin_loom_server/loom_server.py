@@ -16,14 +16,13 @@ from fastapi import WebSocket, WebSocketDisconnect
 from serial_asyncio import open_serial_connection  # type: ignore
 
 from . import client_replies
-from .mock_loom import TERMINATOR, MockLoom
-from .mock_streams import MockStream
+from .loom_constants import BAUD_RATE, TERMINATOR
+from .mock_loom import MockLoom
+from .mock_streams import StreamReaderType, StreamWriterType
 from .reduced_pattern import Pick, ReducedPattern, reduced_pattern_from_pattern_data
 
 # The maximum number of patterns that can be in the history
 MAX_PATTERNS = 20
-
-BAUD_RATE = 9600  # baud rate of loom's FTDI serial port
 
 MOCK_PORT_NAME = "mock"
 
@@ -78,8 +77,8 @@ class LoomServer:
         self.disconnecting = False
         self.client_connected = False
         self.mock_loom: MockLoom | None = None
-        self.loom_reader: asyncio.StreamReader | MockStream | None = None
-        self.loom_writer: asyncio.StreamWriter | MockStream | None = None
+        self.loom_reader: StreamReaderType | None = None
+        self.loom_writer: StreamWriterType | None = None
         self.read_client_task: asyncio.Future = asyncio.Future()
         self.read_loom_task: asyncio.Future = asyncio.Future()
         self.done_task: asyncio.Future = asyncio.Future()
@@ -145,8 +144,9 @@ class LoomServer:
             await self.report_connection_state()
             if self.serial_port == MOCK_PORT_NAME:
                 self.mock_loom = MockLoom(verbose=self.verbose)
-                self.loom_reader = self.mock_loom.reply_stream
-                self.loom_writer = self.mock_loom.command_stream
+                self.loom_reader, self.loom_writer = (
+                    await self.mock_loom.open_client_connection()
+                )
             else:
                 self.loom_reader, self.loom_writer = await open_serial_connection(
                     url=self.serial_port, baudrate=BAUD_RATE

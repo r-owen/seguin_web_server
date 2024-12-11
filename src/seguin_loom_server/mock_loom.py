@@ -6,33 +6,47 @@ import asyncio
 from types import TracebackType
 from typing import Type
 
-from .mock_streams import open_mock_connection
+from .loom_constants import TERMINATOR
+from .mock_streams import (
+    MockStreamReader,
+    MockStreamWriter,
+    StreamReaderType,
+    StreamWriterType,
+    open_mock_connection,
+)
 
 DIRECTION_NAMES = {True: "weave", False: "unweave"}
-
-TERMINATOR = "\r"
 
 
 class MockLoom:
     """Simulate a Seguin dobby loom.
 
+    Parameters
+    ----------
+    verbose : bool
+        If True, print diagnostics to stdout.
+
     The user controls this loom by:
 
-    * writing commands to self.command_stream, a mock asyncio.StreamWriter
-    * reading from self.reply_stream, a mock asyncio.StreamWriter
+    * Call command_reader.create_writer() to create a command writer.
+    * Call reply_writer.create_reader() to create a reply reader.
+    * Read replies from the reply reader.
+    * Write commands to the command writer.
     """
 
     def __init__(self, verbose: bool = True) -> None:
         self.verbose = verbose
         self.weave_forward = True
-        self.reply_stream, self.command_stream = open_mock_connection()
+        self.reply_writer: StreamWriterType | None = None
+        self.command_reader: StreamReaderType | None = None
         self.done_task: asyncio.Future = asyncio.Future()
         self.error_flag = False
         self.shaft_word = 0
         self.weave_cycle_completed = False
-        asyncio.create_task(self.start())
+        self.start_task = asyncio.create_task(self.start())
 
     async def start(self) -> None:
+        self.command_reader, self.reply_writer = open_mock_connection()
         self.read_commands_task = asyncio.create_task(self.handle_commands_loop())
         await self.report_state()
         await self.report_direction()
@@ -40,17 +54,45 @@ class MockLoom:
 
     async def close(self) -> None:
         self.read_commands_task.cancel()
-        self.reply_stream.close()
-        await self.reply_stream.wait_closed()
+        if self.reply_writer is not None:
+            self.reply_writer.close()
+            await self.reply_writer.wait_closed()
+
+    async def open_client_connection(self) -> tuple[StreamReaderType, StreamWriterType]:
+        await self.start_task
+        assert self.reply_writer is not None
+        assert self.command_reader is not None
+        # The isinstance tests make mypy happy, and might catch
+        # a future bug if I figure out how to use virtual serial ports.
+        if isinstance(self.reply_writer, MockStreamWriter) and isinstance(
+            self.command_reader, MockStreamReader
+        ):
+            return (
+                self.reply_writer.create_reader(),
+                self.command_reader.create_writer(),
+            )
+        else:
+            raise RuntimeError(
+                f"Bug: {self.command_reader=} and {self.reply_writer=} must both be mock streams"
+            )
 
     @classmethod
-    async def amain(cls) -> None:
-        loom = cls()
+    async def amain(cls, verbose: bool = True) -> None:
+        loom = cls(verbose=verbose)
         await loom.done_task
 
+    def connected(self) -> bool:
+        return (
+            self.command_reader is not None
+            and self.reply_writer is not None
+            and not self.command_reader.at_eof()
+            and not self.reply_writer.is_closing()
+        )
+
     async def handle_commands_loop(self) -> None:
-        while True:
-            cmdbytes = await self.command_stream.readline()
+        while self.connected():
+            assert self.command_reader is not None  # make mypy happy
+            cmdbytes = await self.command_reader.readline()
             if not cmdbytes:
                 break
             cmd = cmdbytes.decode().rstrip()
@@ -134,8 +176,8 @@ class MockLoom:
                         case "q":
                             if self.verbose:
                                 print("MockLoom: oob quit command")
-                            if self.command_stream is not None:
-                                self.command_stream.close()
+                            if self.reply_writer is not None:
+                                self.reply_writer.close()
                             self.done_task.set_result(None)
                         case _:
                             print(f"MockLoom: unrecognized oob command: {cmd_data!r}")
@@ -144,8 +186,10 @@ class MockLoom:
         """Issue the specified reply, which should not be terminated"""
         if self.verbose:
             print(f"MockLoom: send reply {reply!r}")
-        self.reply_stream.write((reply + TERMINATOR).encode())
-        await self.reply_stream.drain()
+        if self.connected():
+            assert self.reply_writer is not None
+            self.reply_writer.write((reply + TERMINATOR).encode())
+            await self.reply_writer.drain()
 
     async def report_direction(self) -> None:
         await self.reply(f"=u{int(not self.weave_forward)}")

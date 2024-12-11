@@ -1,98 +1,116 @@
 from __future__ import annotations
 
-__all__ = ["MockStream", "open_mock_connection"]
+__all__ = [
+    "MockStreamReader",
+    "MockStreamWriter",
+    "open_mock_connection",
+    "StreamReaderType",
+    "StreamWriterType",
+]
 
 import asyncio
 import collections
 import weakref
-from typing import Deque
+from typing import Deque, TypeAlias
 
 
-class MockStream:
-    """Minimal mock stream reader/writer that only supports line-oriented data.
-
-    Intended to be constructed by `open_mock_connection`,
-    so that each stream can close its sibling.
-
-    Example of use:
-
-    * A mock server may use a pair of mock streams created by
-      `open_mock_connection`. I suggest names "command_stream"
-      (which the server reads from) and "reply_stream" (which the
-      server writes to).
-    * The client using the mock server will communicate via
-      those same streams, writing commands to "command_stream"
-      and reading replies from "reply_stream".
-      Hence the recommended names, to avoid confusion.
-      (If the server used names "command_reader" and "reply_writer",
-      the client ends up writing to the so-called reader
-      and reading from the so-called writer.)
-    * Either end can close the connection by calling "close"
-      and "wait_closed" on the stream it writes to.
-    * Note that with some extra code to create the streams differently,
-      on demand, you have the option to communicate with the mock server
-      with real streams. In this scenerio you would normally use mock streams,
-      e.g. for most unit tests, but can also run or test with real streams,
-      to make sure you are using the mock streams correctly.
-    """
+class StreamData:
+    """Data contained in a mock stream."""
 
     def __init__(self) -> None:
         self.closed_event = asyncio.Event()
         self.data_available_event = asyncio.Event()
         self.queue: Deque[bytes] = collections.deque()
-        self.shaft_word = 0
-        self.sibling: weakref.ProxyType[MockStream] | None = None
 
-    def _set_sibling(self, stream: MockStream) -> None:
-        self.sibling = weakref.proxy(stream)
+    def _is_closed(self):
+        """Return true if this stream has been closed."""
+        return self.closed_event.is_set()
+
+
+class BaseMockStream:
+    """Base class for MockStreamReader and MockStreamWriter"""
+
+    def __init__(self, sd: StreamData | None = None):
+        if sd is None:
+            sd = StreamData()
+        self.sd = sd
+        self.sibling_sd: weakref.ProxyType[StreamData] | None = None
+
+
+class MockStreamReader(BaseMockStream):
+    """Minimal mock stream reader that only supports line-oriented data.
+
+    Intended to be created `open_mock_connection` for a new pair,
+    or `create_writer` to create a writer that will write to the reader.
+    """
 
     def at_eof(self) -> bool:
-        return self.is_closing()
+        return not self.sd.queue and self.sd._is_closed()
 
     async def readline(self) -> bytes:
-        while not self.queue:
-            self.data_available_event.clear()
-            if self.is_closing():
+        while not self.sd.queue:
+            if self.sd._is_closed():
                 return b""
-            await self.data_available_event.wait()
-        if self.is_closing():
-            return b""
-        data = self.queue.popleft()
-        if not self.queue:
-            self.data_available_event.clear()
+            self.sd.data_available_event.clear()
+            await self.sd.data_available_event.wait()
+        data = self.sd.queue.popleft()
+        if not self.sd.queue:
+            self.sd.data_available_event.clear()
         return data
 
+    def create_writer(self) -> MockStreamWriter:
+        return MockStreamWriter(sd=self.sd)
+
+
+class MockStreamWriter(BaseMockStream):
+    """Minimal mock stream writer that only supports line-oriented data.
+
+    Non-terminated data will be treated as if it were terminated.
+
+    Intended to be created `open_mock_connection` for a new pair,
+    or `create_reader` to create a reader that will read from this writer.
+    """
+
     def close(self) -> None:
-        self.closed_event.set()
-        if self.sibling is not None and not self.sibling.closed_event.set():
-            # Avoid infinite recursion
-            sibling, self.sibling = self.sibling, None
-            sibling.close()
+        self.sd.closed_event.set()
+        if self.sibling_sd and not self.sibling_sd._is_closed():
+            self.sibling_sd.closed_event.set()
 
     def is_closing(self) -> bool:
-        return self.closed_event.is_set()
+        return self.sd._is_closed()
 
     async def drain(self) -> None:
         if self.is_closing():
             return
-        self.data_available_event.set()
+        self.sd.data_available_event.set()
 
     async def wait_closed(self) -> None:
-        await self.closed_event.wait()
+        await self.sd.closed_event.wait()
 
     def write(self, data: bytes) -> None:
         if self.is_closing():
             return
-        self.queue.append(data)
+        self.sd.queue.append(data)
+
+    def _set_sibling_data(self, reader: MockStreamReader) -> None:
+        self.sibling_sd = weakref.proxy(reader.sd)
+        print(f"{self.sibling_sd=}")
+
+    def create_reader(self) -> MockStreamReader:
+        return MockStreamReader(sd=self.sd)
 
 
-def open_mock_connection() -> tuple[MockStream, MockStream]:
+StreamReaderType: TypeAlias = asyncio.StreamReader | MockStreamReader
+StreamWriterType: TypeAlias = asyncio.StreamWriter | MockStreamWriter
+
+
+def open_mock_connection() -> tuple[MockStreamReader, MockStreamWriter]:
     """Create a mock stream reader, writer pair.
 
-    The pair is connected, so that closing one will close the other.
+    To create a stream that writes to the returned reader,
+    call reader.create_writer, and similarly for the returned writer.
     """
-    reader = MockStream()
-    writer = MockStream()
-    reader._set_sibling(writer)
-    writer._set_sibling(reader)
+    reader = MockStreamReader()
+    writer = MockStreamWriter()
+    writer._set_sibling_data(reader=reader)
     return (reader, writer)

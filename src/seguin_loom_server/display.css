@@ -2,10 +2,6 @@
     background: #ddd;
 }
 
-* {
-    font-size: 14pt
-}
-
 #canvas {
     border: 1px solid #000000;
 }

@@ -97,7 +97,6 @@ class MockStreamWriter(BaseMockStream):
 
     def _set_sibling_data(self, reader: MockStreamReader) -> None:
         self.sibling_sd = weakref.proxy(reader.sd)
-        print(f"{self.sibling_sd=}")
 
     def create_reader(self) -> MockStreamReader:
         return MockStreamReader(sd=self.sd)

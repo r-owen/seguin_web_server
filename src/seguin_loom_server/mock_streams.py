@@ -58,6 +58,9 @@ class MockStreamReader(BaseMockStream):
             self.sd.data_available_event.clear()
         return data
 
+    async def readuntil(self, separator: bytes = b"\n") -> bytes:
+        return await self.readline()
+
     def create_writer(self) -> MockStreamWriter:
         return MockStreamWriter(sd=self.sd)
 

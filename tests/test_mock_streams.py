@@ -1,6 +1,7 @@
 import asyncio
 
 from seguin_loom_server import mock_streams
+from seguin_loom_server.loom_constants import TERMINATOR_BYTES
 
 TEST_BYTES = (
     b"one line\r",
@@ -50,7 +51,7 @@ async def check_reader_writer(
     for data in TEST_BYTES:
         writer.write(data)
         assert len(reader.sd.queue) == 1
-        read_data = await reader.readline()
+        read_data = await reader.readuntil(TERMINATOR_BYTES)
         assert read_data == data
         assert not reader.at_eof()
         assert not writer.is_closing()
@@ -71,7 +72,7 @@ async def check_reader_writer(
     assert writer.is_closing()
     for i, data in enumerate(TEST_BYTES):
         is_last_read = i + 1 == len(TEST_BYTES)
-        read_data = await reader.readline()
+        read_data = await reader.readuntil(TERMINATOR_BYTES)
         assert read_data == data
         if is_last_read:
             assert reader.at_eof()

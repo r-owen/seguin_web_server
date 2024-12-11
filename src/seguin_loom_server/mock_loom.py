@@ -6,7 +6,7 @@ import asyncio
 from types import TracebackType
 from typing import Type
 
-from .loom_constants import TERMINATOR
+from .loom_constants import TERMINATOR_BYTES, TERMINATOR_STR
 from .mock_streams import (
     MockStreamReader,
     MockStreamWriter,
@@ -92,7 +92,7 @@ class MockLoom:
     async def handle_commands_loop(self) -> None:
         while self.connected():
             assert self.command_reader is not None  # make mypy happy
-            cmdbytes = await self.command_reader.readline()
+            cmdbytes = await self.command_reader.readuntil(TERMINATOR_BYTES)
             if not cmdbytes:
                 break
             cmd = cmdbytes.decode().rstrip()
@@ -188,7 +188,7 @@ class MockLoom:
             print(f"MockLoom: send reply {reply!r}")
         if self.connected():
             assert self.reply_writer is not None
-            self.reply_writer.write((reply + TERMINATOR).encode())
+            self.reply_writer.write((reply + TERMINATOR_STR).encode())
             await self.reply_writer.drain()
 
     async def report_direction(self) -> None:

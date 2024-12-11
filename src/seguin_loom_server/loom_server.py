@@ -16,7 +16,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from serial_asyncio import open_serial_connection  # type: ignore
 
 from . import client_replies
-from .loom_constants import BAUD_RATE, TERMINATOR
+from .loom_constants import BAUD_RATE, TERMINATOR_BYTES, TERMINATOR_STR
 from .mock_loom import MockLoom
 from .mock_streams import StreamReaderType, StreamWriterType
 from .reduced_pattern import Pick, ReducedPattern, reduced_pattern_from_pattern_data
@@ -222,7 +222,7 @@ class LoomServer:
         """
         if self.loom_writer is None or self.loom_writer.is_closing():
             raise RuntimeError("Cannot write to the loom: no connection.")
-        cmd_bytes = (cmd + TERMINATOR).encode()
+        cmd_bytes = (cmd + TERMINATOR_STR).encode()
         if self.verbose:
             print(f"Sending command to loom: {cmd_bytes!r}")
         self.loom_writer.write(cmd_bytes)
@@ -462,7 +462,7 @@ class LoomServer:
             if self.loom_reader is None:
                 raise RuntimeError("No loom reader")
             while True:
-                reply_bytes = await self.loom_reader.readline()
+                reply_bytes = await self.loom_reader.readuntil(TERMINATOR_BYTES)
                 if self.verbose:
                     print(f"Read loom reply: {reply_bytes!r}")
                 if not reply_bytes:

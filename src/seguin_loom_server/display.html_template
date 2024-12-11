@@ -6,6 +6,7 @@
         {display_css}
     </style>
     <title>Loom Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 
 <body id="body">
@@ -44,7 +45,7 @@
 
     <form action="" id="jump_to_pick_form">
         <label>Jump to pick</label>
-        <input type="number" id="jump_to_pick" autocomplete="off" title="Specify the pick number for the next shed."/>
+        <input size="5" id="jump_to_pick" autocomplete="off" title="Specify the pick number for the next shed."/>
         <button>Jump</button>
     </form>
 
@@ -59,7 +60,7 @@
     
     <form action="" id="oob_command_form">
         <label>Command mock loom</label>
-        <input type="text" id="outOfBandCommand" autocomplete="off" title="Commands are:&#10;d=change direction&#10;n=next shed&#10;e=toggle mock loom error state&#10;q=quit mock loom"/>
+        <input type="text" size="1" id="outOfBandCommand" autocomplete="off" title="Commands are:&#10;d=change direction&#10;n=next shed&#10;e=toggle mock loom error state&#10;q=quit mock loom"/>
         <button>Submit</button>
     </form>
 

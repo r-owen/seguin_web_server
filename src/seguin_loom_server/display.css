@@ -3,7 +3,7 @@
 }
 
 * {
-    font-size: 20pt
+    font-size: 14pt
 }
 
 #canvas {
@@ -46,7 +46,7 @@ button {
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 10px;
+    gap: 5px;
 }
 
 #pattern_display_grid {

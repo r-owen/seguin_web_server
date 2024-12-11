@@ -1,8 +1,7 @@
-__all__ = ["BAUD_RATE", "TERMINATOR_STR", "TERMINATOR_BYTES"]
+__all__ = ["BAUD_RATE", "TERMINATOR"]
 
-# terminator str for commands and replies
-TERMINATOR_STR = "\r"
-TERMINATOR_BYTES = TERMINATOR_STR.encode()
+# terminator bytes for commands and replies
+TERMINATOR = b"\r"
 
 # baud rate of loom's FTDI serial port
 BAUD_RATE = 9600

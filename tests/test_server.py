@@ -27,11 +27,20 @@ def test_jump_to_pick() -> None:
         assert reply == dict(type="CurrentPickNumber", pick_number=0, repeat_number=1)
 
         for pick_number in (0, 1, num_picks_in_pattern // 3, num_picks_in_pattern):
-            websocket.send_json(dict(type="jump_to_pick", pick_number=pick_number))
-            reply = receive_dict(websocket)
-            assert reply == dict(
-                type="CurrentPickNumber", pick_number=pick_number, repeat_number=1
-            )
+            for repeat_number in (-1, 0, 1):
+                websocket.send_json(
+                    dict(
+                        type="jump_to_pick",
+                        pick_number=pick_number,
+                        repeat_number=repeat_number,
+                    )
+                )
+                reply = receive_dict(websocket)
+                assert reply == dict(
+                    type="CurrentPickNumber",
+                    pick_number=pick_number,
+                    repeat_number=repeat_number,
+                )
 
 
 def test_oobcommand() -> None:

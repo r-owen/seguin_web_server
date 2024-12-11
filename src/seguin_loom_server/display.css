@@ -11,8 +11,17 @@
     opacity: 0;
 }
 
+button {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 1px;
+}
+
 #weave_direction {
+    width: 30px;
+    height: 30px;
     font-size: 120%;
+    border-style: solid;
+    border-width: 1px;
 }
 
 #pick_color {

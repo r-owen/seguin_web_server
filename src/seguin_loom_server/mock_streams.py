@@ -13,6 +13,8 @@ import collections
 import weakref
 from typing import Deque, TypeAlias
 
+DEFAULT_TERMINATOR = b"\n"
+
 
 class StreamData:
     """Data contained in a mock stream."""
@@ -28,20 +30,39 @@ class StreamData:
 
 
 class BaseMockStream:
-    """Base class for MockStreamReader and MockStreamWriter"""
+    """Base class for MockStreamReader and MockStreamWriter.
 
-    def __init__(self, sd: StreamData | None = None):
+    Parameters
+    ----------
+    sd : StreamData
+        Stream data to use; if None create new.
+    terminator : bytes
+        Required terminator.
+    """
+
+    def __init__(
+        self, sd: StreamData | None = None, terminator: bytes = DEFAULT_TERMINATOR
+    ):
         if sd is None:
             sd = StreamData()
         self.sd = sd
+        self.terminator = terminator
         self.sibling_sd: weakref.ProxyType[StreamData] | None = None
 
 
 class MockStreamReader(BaseMockStream):
     """Minimal mock stream reader that only supports line-oriented data.
 
-    Intended to be created `open_mock_connection` for a new pair,
-    or `create_writer` to create a writer that will write to the reader.
+    Parameters
+    ----------
+    sd : StreamData
+        Stream data to use; if None create new.
+    terminator : bytes
+        Required terminator. Calls to `readuntil` will raise
+        AssertionError if the separator is not in the terminator.
+
+    Intended to be created using `open_mock_connection` for pair of streams,
+    or `create_writer` to create a writer that will write to this reader.
     """
 
     def at_eof(self) -> bool:
@@ -59,16 +80,27 @@ class MockStreamReader(BaseMockStream):
         return data
 
     async def readuntil(self, separator: bytes = b"\n") -> bytes:
+        if separator not in self.terminator:
+            raise AssertionError(
+                f"readuntil {separator=} not in required terminator {self.terminator!r}"
+            )
+
         return await self.readline()
 
     def create_writer(self) -> MockStreamWriter:
-        return MockStreamWriter(sd=self.sd)
+        return MockStreamWriter(sd=self.sd, terminator=self.terminator)
 
 
 class MockStreamWriter(BaseMockStream):
-    """Minimal mock stream writer that only supports line-oriented data.
+    """Minimal mock stream writer that only allows writing terminated data.
 
-    Non-terminated data will be treated as if it were terminated.
+    Parameters
+    ----------
+    sd : StreamData
+        Stream data to use; if None create new.
+    terminator : bytes
+        Required terminator. Calls to `write` with data that is not
+        correctly terminated will raise AssertionError.
 
     Intended to be created `open_mock_connection` for a new pair,
     or `create_reader` to create a reader that will read from this writer.
@@ -91,6 +123,10 @@ class MockStreamWriter(BaseMockStream):
         await self.sd.closed_event.wait()
 
     def write(self, data: bytes) -> None:
+        if not data.endswith(self.terminator):
+            raise AssertionError(
+                f"Cannot write {data=}: it must end with {self.terminator!r}"
+            )
         if self.is_closing():
             return
         self.sd.queue.append(data)
@@ -99,20 +135,22 @@ class MockStreamWriter(BaseMockStream):
         self.sibling_sd = weakref.proxy(reader.sd)
 
     def create_reader(self) -> MockStreamReader:
-        return MockStreamReader(sd=self.sd)
+        return MockStreamReader(sd=self.sd, terminator=self.terminator)
 
 
 StreamReaderType: TypeAlias = asyncio.StreamReader | MockStreamReader
 StreamWriterType: TypeAlias = asyncio.StreamWriter | MockStreamWriter
 
 
-def open_mock_connection() -> tuple[MockStreamReader, MockStreamWriter]:
+def open_mock_connection(
+    terminator=DEFAULT_TERMINATOR,
+) -> tuple[MockStreamReader, MockStreamWriter]:
     """Create a mock stream reader, writer pair.
 
     To create a stream that writes to the returned reader,
     call reader.create_writer, and similarly for the returned writer.
     """
-    reader = MockStreamReader()
-    writer = MockStreamWriter()
+    reader = MockStreamReader(terminator=terminator)
+    writer = MockStreamWriter(terminator=terminator)
     writer._set_sibling_data(reader=reader)
     return (reader, writer)

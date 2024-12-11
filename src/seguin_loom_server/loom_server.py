@@ -16,7 +16,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from serial_asyncio import open_serial_connection  # type: ignore
 
 from . import client_replies
-from .loom_constants import BAUD_RATE, TERMINATOR_BYTES, TERMINATOR_STR
+from .loom_constants import BAUD_RATE, TERMINATOR
 from .mock_loom import MockLoom
 from .mock_streams import StreamReaderType, StreamWriterType
 from .reduced_pattern import Pick, ReducedPattern, reduced_pattern_from_pattern_data
@@ -222,7 +222,7 @@ class LoomServer:
         """
         if self.loom_writer is None or self.loom_writer.is_closing():
             raise RuntimeError("Cannot write to the loom: no connection.")
-        cmd_bytes = (cmd + TERMINATOR_STR).encode()
+        cmd_bytes = cmd.encode() + TERMINATOR
         if self.verbose:
             print(f"Sending command to loom: {cmd_bytes!r}")
         self.loom_writer.write(cmd_bytes)
@@ -271,14 +271,16 @@ class LoomServer:
             print(f"Failed to read pattern {filename!r}: {e!r}")
 
     async def cmd_jump_to_pick(self, command: SimpleNamespace) -> None:
-        jump_to_pick_number = command.pick_number
+        new_pick_number = command.pick_number
+        new_repeat_number = command.repeat_number
         if self.current_pattern is None:
             raise CommandError("Cannot jump to a pick: no pattern")
         try:
-            self.current_pattern.set_current_pick_number(jump_to_pick_number)
+            self.current_pattern.set_current_pick_number(new_pick_number)
+            self.current_pattern.repeat_number = new_repeat_number
         except IndexError:
             raise CommandError(
-                f"Invalid jump pick number {jump_to_pick_number} < 0 or "
+                f"Invalid jump pick number {new_pick_number} < 0 or "
                 f"> {len(self.current_pattern.picks)}"
             )
         if self.current_pattern.pick_number > 0:
@@ -462,7 +464,7 @@ class LoomServer:
             if self.loom_reader is None:
                 raise RuntimeError("No loom reader")
             while True:
-                reply_bytes = await self.loom_reader.readuntil(TERMINATOR_BYTES)
+                reply_bytes = await self.loom_reader.readuntil(TERMINATOR)
                 if self.verbose:
                     print(f"Read loom reply: {reply_bytes!r}")
                 if not reply_bytes:

@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 
-from seguin_loom_server.loom_constants import TERMINATOR_BYTES
+from seguin_loom_server.loom_constants import TERMINATOR
 from seguin_loom_server.mock_loom import MockLoom, StreamReaderType, StreamWriterType
 
 
@@ -25,7 +25,7 @@ async def create_loom():
 
 async def read_reply(reader: StreamReaderType, timeout: float = 1) -> bytes:
     async with asyncio.timeout(timeout):
-        return await reader.readuntil(TERMINATOR_BYTES)
+        return await reader.readuntil(TERMINATOR)
 
 
 async def write_command(

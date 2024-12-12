@@ -52,6 +52,10 @@
         <label id="status">disconnected</label>
     </div>
 
+    <div>
+        <label id="server_message"/>
+    </div>
+
     <p/>
     <hr>
     <p>Debugging stuff</p>

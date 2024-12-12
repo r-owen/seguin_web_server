@@ -13,6 +13,14 @@ class ConnectionStateEnum(enum.IntEnum):
     DISCONNECTING = 3
 
 
+class MessageSeverityEnum(enum.IntEnum):
+    """Severity for ServerMessage messages"""
+
+    INFO = 1
+    WARNING = 2
+    ERROR = 3
+
+
 @dataclasses.dataclass
 class CurrentPickNumber:
     """The current pick and repeat numbers"""
@@ -63,6 +71,15 @@ class LoomState:
             cycle_complete=bool(state_word & 0x04),
             error=bool(state_word & 0x08),
         )
+
+
+@dataclasses.dataclass
+class ServerMessage:
+    """Message from server"""
+
+    type: str = dataclasses.field(init=False, default="ServerMessage")
+    message: str
+    severity: MessageSeverityEnum
 
 
 @dataclasses.dataclass

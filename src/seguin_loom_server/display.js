@@ -9,6 +9,12 @@ const ConnectionStateTranslationDict = {
     3: "disconnecting",
 }
 
+const SeverityColors = {
+    1: "#ffffff",
+    2: "yellow",
+    3: "red",
+}
+
 var ConnectionStateEnum = {}
 for (let i = 0; i < Object.keys(ConnectionStateTranslationDict).length; ++i) {
     var name = ConnectionStateTranslationDict[i]
@@ -210,8 +216,10 @@ class LoomClient {
     handleServerReply(event) {
         var messageElt = document.getElementById("message")
         messageElt.textContent = event.data.substring(0, 80) + "..."
+        var serverMessageElt = document.getElementById("server_message")
 
         const datadict = JSON.parse(event.data)
+        var resetServerMessage = true
         if (datadict.type == "ConnectionState") {
             this.connectionState = ConnectionStateTranslationDict[datadict.state]
             this.displayLoomState()
@@ -224,6 +232,7 @@ class LoomClient {
             this.weavingPattern.display()
             this.displayPick()
         } else if (datadict.type == "LoomState") {
+            resetServerMessage = false
             this.loomState = datadict
             this.displayLoomState()
         } else if (datadict.type == "ReducedPattern") {
@@ -275,11 +284,23 @@ class LoomClient {
                 menuOptions.remove(patternNames.length)
             }
             patternMenu.value = currentName
+        } else if (datadict.type == "ServerMessage") {
+            resetServerMessage = false
+            var color = SeverityColors[datadict.severity]
+            if (color == null) {
+                color = "#ffffff"
+            }
+            serverMessageElt.textContent = datadict.message
+            serverMessageElt.style.color = color
         } else if (datadict.type == "WeaveDirection") {
             this.weaveForward = datadict.forward
             this.displayDirection()
         } else {
             console.log("Unknown message type", datadict.type)
+        }
+        if (resetServerMessage) {
+            serverMessageElt.textContent = ""
+            serverMessageElt.style.color = "#ffffff"
         }
     }
 

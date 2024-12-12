@@ -16,6 +16,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from serial_asyncio import open_serial_connection  # type: ignore
 
 from . import client_replies
+from .client_replies import MessageSeverityEnum
 from .loom_constants import BAUD_RATE, TERMINATOR
 from .mock_loom import MockLoom
 from .mock_streams import StreamReaderType, StreamWriterType
@@ -177,7 +178,10 @@ class LoomServer:
             try:
                 await self.connect()
             except Exception as e:
-                print(f"Could not connect to the loom: {e!r}")
+                await self.report_server_message(
+                    message=f"Could not connect to the loom: {e!r}",
+                    severity=MessageSeverityEnum.ERROR,
+                )
         await self.done_task
 
     async def disconnect_client(self, cancel_read_client_loop: bool = True) -> None:
@@ -268,7 +272,10 @@ class LoomServer:
             await self.add_pattern(pattern)
 
         except Exception as e:
-            print(f"Failed to read pattern {filename!r}: {e!r}")
+            await self.report_server_message(
+                message=f"Failed to read pattern {filename!r}: {e!r}",
+                severity=MessageSeverityEnum.WARNING,
+            )
 
     async def cmd_jump_to_pick(self, command: SimpleNamespace) -> None:
         new_pick_number = command.pick_number
@@ -373,6 +380,11 @@ class LoomServer:
         )
         await self.reply_to_client(reply)
 
+    async def report_server_message(self, message: str, severity: MessageSeverityEnum):
+        """Report a ServerMessage to the client."""
+        reply = client_replies.ServerMessage(message=message, severity=severity)
+        await self.reply_to_client(reply)
+
     async def report_weave_direction(self) -> None:
         """Report WeaveDirection"""
         client_reply = client_replies.WeaveDirection(forward=self.weave_forward)
@@ -414,14 +426,19 @@ class LoomServer:
                 try:
                     data = await self.websocket.receive_json()
                 except json.JSONDecodeError:
-                    print("Ignoring client message: not json-encoded")
-                    continue
+                    await self.report_server_message(
+                        message="Invalid command: not json-encoded",
+                        severity=MessageSeverityEnum.WARNING,
+                    )
 
                 # Parse the command
                 try:
                     cmd_type = data.get("type")
                     if cmd_type is None:
-                        print(f"Ignoring client command {data!r}: no 'type' field")
+                        await self.report_server_message(
+                            message=f"Ignoring client command {data!r}: no 'type' field",
+                            severity=MessageSeverityEnum.WARNING,
+                        )
                         continue
                     command = SimpleNamespace(**data)
                     if self.verbose:
@@ -431,26 +448,48 @@ class LoomServer:
                         print(f"Read client command {msg_summary}")
                     cmd_handler = self.command_dispatch_table.get(cmd_type)
                 except Exception as e:
-                    print(f"Client command {data} failed: {e!r}")
+                    message = f"Client command {data} failed: {e!r}"
+                    print(message)
+                    await self.report_server_message(
+                        message=message,
+                        severity=MessageSeverityEnum.ERROR,
+                    )
                     traceback.print_exc()
 
                 # Execute the command
                 try:
                     if cmd_handler is None:
-                        print(f"Client command {command} failed: unknown type")
+                        await self.report_server_message(
+                            message=f"Client command failed: unknown type={command.type}",
+                            severity=MessageSeverityEnum.ERROR,
+                        )
                         continue
                     await cmd_handler(command)
                 except CommandError as e:
-                    print(f"Client command {command} failed: {e!r}")
+                    await self.report_server_message(
+                        message=f"{e!s}",
+                        severity=MessageSeverityEnum.ERROR,
+                    )
                 except Exception as e:
-                    print(f"Client command {command} failed: {e!r}")
+                    message = (
+                        f"Client command {command} command unexpectedly failed: {e!r}"
+                    )
+                    print(message)
+                    await self.report_server_message(
+                        message=message,
+                        severity=MessageSeverityEnum.ERROR,
+                    )
                     traceback.print_exc()
 
         except WebSocketDisconnect:
             print("Client disconnected")
             return
         except Exception as e:
-            print(f"read_client_loop failed: {e!r}")
+            print(f"Server bug: client read looop failed: {e!r}")
+            await self.report_server_message(
+                message="Client read loop failed; try refreshing",
+                severity=MessageSeverityEnum.ERROR,
+            )
             traceback.print_exc()
             self.client_connected = False
             if self.websocket is not None:
@@ -471,9 +510,21 @@ class LoomServer:
                     return
                 reply = reply_bytes.decode().strip()
                 if len(reply) < 2:
-                    print(f"Invalid loom reply {reply!r}: less than 2 chars")
+                    message = f"Ignoring invalid reply from the loom {reply!r}: less than 2 chars"
+                    print(message)
+                    await self.report_server_message(
+                        message=message,
+                        severity=MessageSeverityEnum.WARNING,
+                    )
+                    continue
                 if reply[0] != "=":
-                    print(f"Invalid loom reply {reply!r}: must start with =")
+                    message = f"Ignoring invalid reply from the loom {reply!r}: no leading '='"
+                    print(message)
+                    await self.report_server_message(
+                        message=message,
+                        severity=MessageSeverityEnum.WARNING,
+                    )
+                    continue
                 reply_char = reply[1]
                 reply_data = reply[2:]
                 match reply_char:
@@ -488,11 +539,15 @@ class LoomServer:
                         elif reply_data == "1":
                             self.weave_forward = False
                         else:
-                            print(
-                                f"Invalid loom reply {reply!r}: direction must be 0 or 1"
+                            message = (
+                                f"Ignoring invalid direction reply from loom {reply!r}: "
+                                "direction must be 0 or 1"
+                            )
+                            print(message)
+                            await self.report_server_message(
+                                message=message, severity=MessageSeverityEnum.WARNING
                             )
                             continue
-
                         await self.report_weave_direction()
 
                         # Command a new pick, if there is one.
@@ -525,7 +580,12 @@ class LoomServer:
                             await self.report_pick_number()
 
         except Exception as e:
-            print(f"read_loom_loop failed: {e!r}")
+            message = f"Server stopped listening to the loom: {e!r}"
+            print(message)
+            await self.report_server_message(
+                message=message,
+                severity=MessageSeverityEnum.ERROR,
+            )
             traceback.print_exc()
             await self.disconnect()
 

@@ -93,4 +93,11 @@ However, at present this information is only contained in memory. It will be los
 
 ## Developer Tips
 
-* Run "pre-commit install" before working on this package.
+* Download the source code from [github](https://github.com/r-owen/seguin_loom_server.git), or make a fork and download that.
+* Inside the directory, issue the following commands:
+
+    * `pip install -e .` to install an editable version of the package.
+    * `pre-commit install` to activate the pre-commit hooks.
+
+* You may run a mock loom by starting the server with: `run_seguin_loom mock`
+* The web page will show a few extra controls for debugging.

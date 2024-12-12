@@ -46,16 +46,29 @@ You are now ready to weave.
 
 * The pattern display shows woven fabric below and potential future fabric above.
   (This is the opposite of the usual US drawdown).
-* The direction button just to the right of the pattrn display shows the weaving direction.
-  A green down arrow indicates weaving and a red up arrow indicates unweaving.
-  Press the button to change the direction (or press the "UNW" button on the loom's control panel).
-* To advance the loom simulator to the next shed, use the "Command mock loom" field:
-  type "n" followed by carriage return.
-  You can also change directions with "d" and toggle the error state of the loom simulator with "e".
+* There are two buttons to the right of the pattern display:
+
+    * The upper button shows the current pick color (blank if pick 0).
+      Press it to advance to the next pick. 
+      You may also press the loom's pedal (which is usually more convenient) or the "PICK"" button on the loom's control panel.
+  
+    * The lower button shows whether you are weaving (green down arrow) or unweaving (red up arrow).
+      The arrow points in the direction cloth is moving through the loom.
+      Press this button to change the direction.
+      You may also press the "UNW" button on the loom's control panel.
+
+* To jump to a different pick and/or repeat:
+
+    * Enter the desired value in the pick and repeat boxes.
+      The boxes will turn pink and the Jump and Reset buttons will be enabled.
+    * Press the "Jump" button (or type carriage return) to jump.
+      Note: if a box is empty when you press "Jump", it will not change that value.
+    * Press the "Reset" button to reset the displayed values.
+    * Advancing to the next pick or choosing a new pattern will also reset the displayed values.
+
 * The server will automatically repeat patterns if you weave or unweave beyond the end. See below for details.
-* All the controls have help.
-  If you have a mouse or trackpad, hover the pointer over a control to see help.
-  If you have a touch screen, press and hold on a control until the help appears.
+* All the controls have help, though it is only visible if you have a pointer (not on a phone or other touchscreen-only device).
+  Hover over the control to see the help.
 
 ## Automatic Pattern Repeat
 
@@ -63,7 +76,7 @@ If you advance past the end of the pattern, the display returns to pick 0 (no sh
 The fact that no shafts are raised is meant as a warning that you have reached the end.
 Continue advancing to weave the next repeat.
 
-Unweaving also requires an extra advance to unweave past the beginning of one repeat and start unweaving the next repeat.
+Unweaving also requires an extra advance, to unweave past the beginning of one repeat and start unweaving the next repeat.
 
 ## Remembering Patterns
 

@@ -56,8 +56,14 @@ async def get() -> HTMLResponse:
 
     display_js = get_file("display.js")
 
+    assert loom_server is not None
+    is_mock = loom_server.mock_loom is not None
+    display_debug_controls = "block" if is_mock else "none"
+
     display_html = display_html_template.format(
-        display_css=display_css, display_js=display_js
+        display_css=display_css,
+        display_js=display_js,
+        display_debug_controls=display_debug_controls,
     )
 
     return HTMLResponse(display_html)

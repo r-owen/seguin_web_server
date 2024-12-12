@@ -56,7 +56,7 @@
         <label id="server_message"/>
     </div>
 
-    <p/>
+    <div style="display:{display_debug_controls}">
     <hr>
     <p>Debugging stuff</p>
     
@@ -67,6 +67,7 @@
     </form>
 
     <div><label>Message from server: </label><label id='message'/></div>
+    </div>
     <script>
         {display_js}
     </script>

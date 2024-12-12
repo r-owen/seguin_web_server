@@ -55,11 +55,11 @@ class ReducedPattern {
     Center the current pick vertically.
     */
     display() {
-        var pickColorElt = document.getElementById("pick_color")
+        var gotoNextPickElt = document.getElementById("goto_next_pick")
         var shaftsRaisedElt = document.getElementById("shafts_raised")
         if ((this.pick_number > 0) && (this.pick_number <= this.picks.length)) {
             const pick = this.picks[this.pick_number - 1]
-            pickColorElt.style.backgroundColor = this.color_table[pick.color]
+            gotoNextPickElt.style.backgroundColor = this.color_table[pick.color]
             var shaftsRaisedText = ""
             for (let i = 0; i < pick.are_shafts_up.length; ++i) {
                 if (pick.are_shafts_up[i]) {
@@ -68,7 +68,7 @@ class ReducedPattern {
             }
             shaftsRaisedElt.textContent = shaftsRaisedText
         } else {
-            pickColorElt.style.backgroundColor = "rgb(0, 0, 0, 0)"
+            gotoNextPickElt.style.backgroundColor = "rgb(0, 0, 0, 0)"
             shaftsRaisedElt.textContent = ""
         }
         var canvas = document.getElementById("canvas")
@@ -203,8 +203,8 @@ class LoomClient {
         var patternMenu = document.getElementById("pattern_menu")
         patternMenu.addEventListener("change", this.handlePatternMenu.bind(this))
 
-        var pickColorElt = document.getElementById("pick_color")
-        pickColorElt.addEventListener("click", this.handlePickColor.bind(this))
+        var gotoNextPickElt = document.getElementById("goto_next_pick")
+        gotoNextPickElt.addEventListener("click", this.handleGotoNextPick.bind(this))
 
         var weaveDirectionElt = document.getElementById("weave_direction")
         weaveDirectionElt.addEventListener("click", this.handleWeaveDirection.bind(this))
@@ -519,12 +519,12 @@ class LoomClient {
     }
 
     /*
-    Handle pick_color button clicks.
+    Handle goto_next_pick button clicks.
     
-    Send the pick_color command to the loom server.
+    Send the goto_next_pick command to the loom server.
     */
-    async handlePickColor(event) {
-        var message = { "type": "oobcommand", "command": "n" }
+    async handleGotoNextPick(event) {
+        var message = { "type": "goto_next_pick" }
         await this.ws.send(JSON.stringify(message))
     }
 

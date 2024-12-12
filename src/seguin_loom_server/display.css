@@ -6,7 +6,7 @@
     border: 1px solid #000000;
 }
 
-#pick_color_spacer {
+#goto_next_pick_spacer {
     height: 30px;
     opacity: 0;
 }
@@ -24,7 +24,7 @@ button {
     border-width: 1px;
 }
 
-#pick_color {
+#goto_next_pick {
     width: 30px;
     height: 30px;
     background-color: rgba(0, 0, 0, 0);

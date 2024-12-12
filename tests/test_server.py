@@ -12,6 +12,74 @@ datadir = pathlib.Path(__file__).parent / "data"
 all_pattern_paths = list(datadir.glob("*.wif")) + list(datadir.glob("*.dtx"))
 
 
+def test_goto_next_pick() -> None:
+    pattern_name = all_pattern_paths[3].name
+
+    with create_test_client(upload_patterns=all_pattern_paths[2:5]) as (
+        client,
+        websocket,
+    ):
+        websocket.send_json(dict(type="select_pattern", name=pattern_name))
+        reply = receive_dict(websocket)
+        assert reply["type"] == "ReducedPattern"
+        num_picks_in_pattern = len(reply["picks"])
+        reply = receive_dict(websocket)
+        assert reply == dict(type="CurrentPickNumber", pick_number=0, repeat_number=1)
+
+        expected_pick_number = 0
+        expected_repeat_number = 1
+        while not (expected_repeat_number == 2 and expected_pick_number == 3):
+            expected_pick_number += 1
+            if expected_pick_number == num_picks_in_pattern + 1:
+                expected_pick_number = 0
+                expected_repeat_number += 1
+
+            websocket.send_json(dict(type="goto_next_pick"))
+            reply = receive_dict(websocket)
+            assert reply == dict(
+                type="CurrentPickNumber",
+                pick_number=expected_pick_number,
+                repeat_number=expected_repeat_number,
+            )
+
+        expected_pick_number -= 1
+        websocket.send_json(
+            dict(
+                type="weave_direction",
+                forward=False,
+            )
+        )
+        reply = receive_dict(websocket)
+        assert reply == dict(
+            type="WeaveDirection",
+            forward=False,
+        )
+        reply = receive_dict(websocket)
+        assert reply == dict(
+            type="CurrentPickNumber",
+            pick_number=expected_pick_number,
+            repeat_number=expected_repeat_number,
+        )
+
+        while not (
+            expected_repeat_number == 0
+            and expected_pick_number == num_picks_in_pattern - 2
+        ):
+            expected_pick_number -= 1
+            print(f"{expected_pick_number=}, {expected_repeat_number=}")
+            if expected_pick_number < 0:
+                expected_pick_number = num_picks_in_pattern
+                expected_repeat_number -= 1
+
+            websocket.send_json(dict(type="goto_next_pick"))
+            reply = receive_dict(websocket)
+            assert reply == dict(
+                type="CurrentPickNumber",
+                pick_number=expected_pick_number,
+                repeat_number=expected_repeat_number,
+            )
+
+
 def test_jump_to_pick() -> None:
     pattern_name = all_pattern_paths[3].name
 

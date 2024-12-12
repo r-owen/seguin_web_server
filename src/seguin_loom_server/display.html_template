@@ -27,8 +27,8 @@
     <div class="flex-container" id="pattern_display_grid">
         <div><canvas id="canvas"/></div>
         <div class="flex-container" id="pattern_controls_grid">
-            <div id="pick_color_spacer"></div>
-            <div><button type="button" id="pick_color" title="Pick color; click to go to next pick"></button></div>
+            <div id="goto_next_pick_spacer"></div>
+            <div><button type="button" id="goto_next_pick" title="Pick color; click to go to next pick"></button></div>
             <div><button type="button" id="weave_direction" title="Weave direction; click to change direction">?</button></div>
         </div>
     </div>

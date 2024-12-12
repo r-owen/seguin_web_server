@@ -90,6 +90,7 @@ class LoomServer:
         self.command_dispatch_table = dict(
             clear_pattern_names=self.cmd_clear_pattern_names,
             file=self.cmd_file,
+            goto_next_pick=self.cmd_goto_next_pick,
             jump_to_pick=self.cmd_jump_to_pick,
             select_pattern=self.cmd_select_pattern,
             weave_direction=self.cmd_weave_direction,
@@ -276,6 +277,21 @@ class LoomServer:
                 message=f"Failed to read pattern {filename!r}: {e!r}",
                 severity=MessageSeverityEnum.WARNING,
             )
+
+    async def cmd_goto_next_pick(self, command: SimpleNamespace) -> None:
+        if self.current_pattern is None:
+            await self.report_server_message(
+                message="Cannot advance; no pattern",
+                severity=MessageSeverityEnum.WARNING,
+            )
+            return
+
+        # Command a new pick, if there is one.
+        new_pick_number = self.increment_pick_number()
+        if new_pick_number > 0:
+            pick = self.current_pattern.get_current_pick()
+            await self.command_pick(pick)
+        await self.report_pick_number()
 
     async def cmd_jump_to_pick(self, command: SimpleNamespace) -> None:
         new_pick_number = command.pick_number

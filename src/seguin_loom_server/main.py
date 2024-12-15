@@ -1,4 +1,5 @@
 import argparse
+import pathlib
 import pkgutil
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -7,16 +8,14 @@ import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import HTMLResponse, Response
 
-from .loom_server import LoomServer
+from .loom_server import DEFAULT_DATABASE_PATH, LoomServer
 
 # Avoid warnings about no event loop in unit tests
 # by constructing when the server starts
 loom_server: LoomServer | None = None
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, FastAPI]:
-    global loom_server
+def create_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "serial_port",
@@ -25,16 +24,34 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, FastAPI]:
         "Specify 'mock' to run a mock (simulated) loom",
     )
     parser.add_argument(
+        "-r",
+        "--reset-db",
+        action="store_true",
+        help="reset pattern database?",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
         help="print diagnostic information to stdout",
     )
+    parser.add_argument(
+        "--db-path",
+        default=DEFAULT_DATABASE_PATH,
+        type=pathlib.Path,
+        help="Path for pattern database. "
+        "Settable so unit tests can avoid changing the real database.",
+    )
+    return parser
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, FastAPI]:
+    global loom_server
+    parser = create_argument_parser()
     args = parser.parse_args()
 
-    async with LoomServer(
-        serial_port=args.serial_port, verbose=args.verbose
-    ) as loom_server:
+    async with LoomServer(**vars(args)) as loom_server:
         yield
 
 
@@ -86,6 +103,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
 
 def run_seguin_loom() -> None:
+    # Handle the help argument and also catch parsing errors right away
+    parser = create_argument_parser()
+    parser.parse_args()
+
     uvicorn.run(
         "seguin_loom_server.main:app",
         host="0.0.0.0",

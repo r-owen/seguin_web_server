@@ -382,7 +382,7 @@ class LoomClient {
     async handlePatternMenu(event) {
         var patternMenu = document.getElementById("pattern_menu")
         var message
-        if (patternMenu.value == "Clear Menu") {
+        if (patternMenu.value == "Clear Recents") {
             message = { "type": "clear_pattern_names" }
         } else {
             message = { "type": "select_pattern", "name": patternMenu.value }

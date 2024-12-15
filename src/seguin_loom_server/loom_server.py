@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-__all__ = ["LoomServer"]
+__all__ = ["LoomServer", "DEFAULT_DATABASE_PATH"]
 
 import asyncio
 import dataclasses
 import enum
 import io
 import json
+import pathlib
+import tempfile
 import traceback
 from types import SimpleNamespace, TracebackType
 from typing import Any, Type
@@ -20,10 +22,13 @@ from .client_replies import MessageSeverityEnum
 from .loom_constants import BAUD_RATE, TERMINATOR
 from .mock_loom import MockLoom
 from .mock_streams import StreamReaderType, StreamWriterType
+from .pattern_database import PatternDatabase
 from .reduced_pattern import Pick, ReducedPattern, reduced_pattern_from_pattern_data
 
 # The maximum number of patterns that can be in the history
-MAX_PATTERNS = 20
+MAX_PATTERNS = 25
+
+DEFAULT_DATABASE_PATH = pathlib.Path(tempfile.gettempdir()) / "pattern_database.sqlite"
 
 MOCK_PORT_NAME = "mock"
 
@@ -66,14 +71,34 @@ class LoomServer:
     serial_port : str
         The name of the serial port, e.g. "/dev/tty0".
         If the name is "mock" then use a mock loom.
+    reset_db : bool
+        If True, delete the old database and create a new one.
+        A rescue aid, in case the database gets corrupted.
     verbose : bool
         If True, print diagnostic information to stdout.
+    db_path : pathlib.Path
+        Path to pattern database.
+        Intended for unit tests, to avoid stomping on the real database.
     """
 
-    def __init__(self, serial_port: str, verbose: bool) -> None:
+    def __init__(
+        self,
+        serial_port: str,
+        reset_db: bool,
+        verbose: bool,
+        db_path: pathlib.Path = DEFAULT_DATABASE_PATH,
+    ) -> None:
+        if verbose:
+            print(
+                f"LoomServer({serial_port=!r}, {reset_db=!r}, {verbose=!r}, {db_path=!r})"
+            )
         self.serial_port = serial_port
         self.websocket: WebSocket | None = None
+        self.pattern_db = PatternDatabase(db_path)
         self.verbose = verbose
+        self.db_path = db_path
+        if reset_db:
+            db_path.unlink(missing_ok=True)
         self.loom_connecting = False
         self.loom_disconnecting = False
         self.client_connected = False
@@ -84,7 +109,6 @@ class LoomServer:
         self.read_loom_task: asyncio.Future = asyncio.Future()
         self.done_task: asyncio.Future = asyncio.Future()
         self.current_pattern: ReducedPattern | None = None
-        self.pattern_dict: dict[str, ReducedPattern] = dict()
         self.weave_forward = True
         self.loom_error_flag = False
         self.command_dispatch_table = dict(
@@ -97,32 +121,38 @@ class LoomServer:
             oobcommand=self.cmd_oobcommand,
         )
 
+    async def start(self) -> None:
+        await self.pattern_db.init()
+        # Restore current pattern, if any
+        names = await self.pattern_db.get_pattern_names()
+        if len(names) > 0:
+            await self.select_pattern(names[-1])
+        await self.connect_to_loom()
+
+    async def close(
+        self, stop_read_loom: bool = True, stop_read_client: bool = True
+    ) -> None:
+        """Disconnect from client and loom and stop all tasks."""
+        if self.loom_writer is not None:
+            if stop_read_loom:
+                self.read_loom_task.cancel()
+            if stop_read_client:
+                self.read_client_task.cancel()
+            self.loom_writer.close()
+        if self.mock_loom is not None:
+            await self.mock_loom.close()
+        if not self.done_task.done():
+            self.done_task.set_result(None)
+
     async def add_pattern(self, pattern: ReducedPattern) -> None:
-        """Add a pattern to self.pattern_dict.
+        """Add a pattern to pattern database.
 
         Also purge the MAX_PATTERNS oldest entries (excluding
         the current pattern, if any) and report the new list
         of pattern names to the client.
         """
-        current_name = (
-            None if self.current_pattern is None else self.current_pattern.name
-        )
-        self.pattern_dict[pattern.name] = pattern
-        for name in list(self.pattern_dict.keys())[:-MAX_PATTERNS]:
-            if name != current_name:
-                del self.pattern_dict[name]
+        await self.pattern_db.add_pattern(pattern=pattern, max_entries=MAX_PATTERNS)
         await self.report_pattern_names()
-
-    async def clear_pattern_dict(self) -> None:
-        """Clear self.pattern_dict, except for the current pattern (if any).
-
-        Report the new list of pattern names to the client.
-        """
-        self.pattern_dict = dict()
-        if self.current_pattern is not None:
-            await self.add_pattern(self.current_pattern)
-        else:
-            await self.report_pattern_names()
 
     @property
     def loom_connected(self) -> bool:
@@ -255,7 +285,13 @@ class LoomServer:
         )
 
     async def cmd_clear_pattern_names(self, command: SimpleNamespace) -> None:
-        await self.clear_pattern_dict()
+        # Clear the pattern database
+        # Then add the current pattern (if any)
+        await self.pattern_db.clear_database()
+        if self.current_pattern is not None:
+            await self.add_pattern(self.current_pattern)
+        else:
+            await self.report_pattern_names()
 
     async def cmd_file(self, command: SimpleNamespace) -> None:
         filename = command.name
@@ -322,12 +358,7 @@ class LoomServer:
         name = command.name
         if self.current_pattern is not None and self.current_pattern.name == name:
             return
-        pattern = self.pattern_dict.get(name)
-        if pattern is None:
-            raise CommandError(f"select_pattern failed: no such pattern: {name}")
-        self.current_pattern = pattern
-        await self.report_current_pattern()
-        await self.report_pick_number()
+        await self.select_pattern(name)
 
     async def cmd_weave_direction(self, command: SimpleNamespace) -> None:
         # Warning: this code assumes that the loom server sends "=u"
@@ -359,7 +390,10 @@ class LoomServer:
             await self.websocket.send_json(reply_dict)
         else:
             if self.verbose:
-                print(f"Could not send reply {reply} to client: not connected")
+                reply_str = str(reply)
+                if len(reply_str) > 120:
+                    reply_str = reply_str[0:120] + "..."
+                print(f"Could not send reply {reply_str} to client: not connected")
 
     async def report_command_problem(self, message: str, severity: MessageSeverityEnum):
         """Report a CommandProblem to the client."""
@@ -394,11 +428,7 @@ class LoomServer:
 
     async def report_pattern_names(self) -> None:
         """Report PatternNames to the client."""
-        names = list(self.pattern_dict.keys())
-        if self.current_pattern is not None:
-            current_name = self.current_pattern.name
-            if current_name not in names:
-                names.append(current_name)
+        names = await self.pattern_db.get_pattern_names()
         reply = client_replies.PatternNames(names=names)
         await self.reply_to_client(reply)
 
@@ -406,6 +436,11 @@ class LoomServer:
         """Report CurrentPickNumber to the client."""
         if self.current_pattern is None:
             return
+        await self.pattern_db.update_pick_number(
+            pattern_name=self.current_pattern.name,
+            pick_number=self.current_pattern.pick_number,
+            repeat_number=self.current_pattern.repeat_number,
+        )
         reply = client_replies.CurrentPickNumber(
             pick_number=self.current_pattern.pick_number,
             repeat_number=self.current_pattern.repeat_number,
@@ -417,20 +452,14 @@ class LoomServer:
         client_reply = client_replies.WeaveDirection(forward=self.weave_forward)
         await self.reply_to_client(client_reply)
 
-    async def close(
-        self, stop_read_loom: bool = True, stop_read_client: bool = True
-    ) -> None:
-        """Disconnect from client and loom and stop all tasks."""
-        if self.loom_writer is not None:
-            if stop_read_loom:
-                self.read_loom_task.cancel()
-            if stop_read_client:
-                self.read_client_task.cancel()
-            self.loom_writer.close()
-        if self.mock_loom is not None:
-            await self.mock_loom.close()
-        if not self.done_task.done():
-            self.done_task.set_result(None)
+    async def select_pattern(self, name: str) -> None:
+        try:
+            pattern = await self.pattern_db.get_pattern(name)
+        except LookupError:
+            raise CommandError(f"select_pattern failed: no such pattern: {name}")
+        self.current_pattern = pattern
+        await self.report_current_pattern()
+        await self.report_pick_number()
 
     async def read_client_loop(self) -> None:
         """Read and process commands from the client."""
@@ -505,6 +534,8 @@ class LoomServer:
                     )
                     traceback.print_exc()
 
+        except asyncio.CancelledError:
+            return
         except WebSocketDisconnect:
             print("Client disconnected")
             return
@@ -573,15 +604,6 @@ class LoomServer:
                             )
                             continue
                         await self.report_weave_direction()
-
-                        # Command a new pick, if there is one.
-                        if self.current_pattern is None:
-                            continue
-                        new_pick_number = self.increment_pick_number()
-                        if new_pick_number > 0:
-                            pick = self.current_pattern.get_current_pick()
-                            await self.command_pick(pick)
-                        await self.report_pick_number()
                     case "s":
                         # Loom status (may include a request for the next pick)
                         state_word = int(reply_data, base=16)
@@ -603,6 +625,8 @@ class LoomServer:
                                 await self.command_pick(pick)
                             await self.report_pick_number()
 
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
             message = f"Server stopped listening to the loom: {e!r}"
             print(message)
@@ -614,7 +638,7 @@ class LoomServer:
             await self.disconnect_from_loom()
 
     async def __aenter__(self) -> LoomServer:
-        await self.connect_to_loom()
+        await self.start()
         return self
 
     async def __aexit__(

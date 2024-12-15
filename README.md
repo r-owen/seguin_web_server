@@ -31,31 +31,40 @@ I will do that once I have access to a loom (I am trying to order one now).
     * Run the command **ls /dev/tty.usb\*** again. There should be one new entry,
       which is the name of the port connected to the loom.
   
-* If you are using a Raspberry Pi, I strongly recommend [setting a permanent host name](https://www.tomshardware.com/how-to/static-ip-raspberry-pi), you can always connect your web browser to the same address.
+* If you are using a Raspberry Pi, I strongly recommend [setting a permanent host name](https://www.tomshardware.com/how-to/static-ip-raspberry-pi), so you can always connect your web browser to the same address.
   This step is not necessary for macOS, because it always has a permanent host name.
 
 * If you don't know the host name of the computer, you can query it with command: **hostname**
 
 * Run the web server with command: **run_seguin_loom** ***port_name***
 
-  Note: special port name "mock" will run a simulated loom (no USB connection required).
-  This can give you a chance to try out the user interface.
+    * Special port name "mock" will run a simulated loom (no USB connection required).
+      This can give you a chance to try out the user interface.
+    
+    * If you want to clear out old patterns, you can add the --reset-db argument: **run_seguin_loom** ***port_name*** **--reset-db**
+      or select Clear Recents in the pattern menu in the web interface, see below.
   
 * You may stop the web server by typing ctrl-C (probably twice).
-  Your current pick number and all uploaded patterns will be lost.
 
 ## Running the Loom
 
 Using any modern web browser, connect to the loom server at address **http://***hostname***:8000** where ***hostname*** is the host name you determined above.
 In the resulting window:
 
-* Upload one or more weaving pattern files (.wif or FiberWorks .dtx files).
+* Upload one or more weaving pattern files (standard .wif or FiberWorks .dtx files).
   You can push the "Upload" button or drop the files anywhere onto the web page
   (please make sure the page is gray before you drop the files).
 
 * Select the desired pattern using the "Pattern" drop-down menu.
-  You may switch patterns at any time, and the server remembers where you left off for each of them.
+  The menu shows the 25 most recent patterns you have used.
+  You may switch patterns at any time, and the server remembers where were weaving in each of them.
   This allows you to load several treadlings for one threading (each as a separate pattern file) and switch between them at will.
+
+* To clear out the pattern menu (which may become cluttered over time),
+  select "Clear Recents", the last item in the menu.
+  This clears out information for all patterns except the current pattern.
+  If you want to get rid of the current pattern as well, first load a new pattern
+  (or restart the server with the **--reset-db** command-line argument, as explained above).
 
 You are now ready to weave.
 
@@ -66,7 +75,7 @@ You are now ready to weave.
 
     * The upper button shows the current pick color (blank if pick 0).
       Press it to advance to the next pick. 
-      You may also advance by pressing the loom's pedal, or the "PICK"" button on the loom's control panel.
+      You may also advance by pressing the loom's pedal or the "PICK"" button on the loom's control panel.
   
     * The lower button shows whether you are weaving (green down arrow) or unweaving (red up arrow).
       The arrow points in the direction cloth is moving through the loom.
@@ -88,9 +97,15 @@ You are now ready to weave.
 * The software will automatically repeat patterns if you weave or unweave beyond the end.
   However, you must advance twice, when you reach an end, before the next set of shafts is raised.
   This is meant as a signal that you have finished one pattern repeat.
-  On the first advance the display will show pick 0 and the repeat number will change.
+  On the first advance the display will show pick 0 and the repeat number will increase or decrease by 1,
+  but the shed will not change.
 
 *  Subtleties:
+
+    * The server only allows one web browser to connect, and the most recent connection attempt wins.
+      (This prevents a mystery connection from hogging the loom).
+      If the connection is dropped on the device you want to use for weaving,
+      simply reload the page to regain the connection.
 
     * Every time you connected to the web server or reload the page, the server refreshes
       its connection to the loom (by disconnecting and immediately reconnecting).
@@ -98,26 +113,20 @@ You are now ready to weave.
       and it is not due to the loom losing power or the USB cable becoming disconnected,
       you might try reloading the page.
 
-    * The server only allows one web browser to connect, and the most recent connection attempt wins.
-      (This prevents an old zombie connection from hogging the loom).
-      If the connection is dropped on the device (e.g. phone or tablet) you want to use for weaving,
-      simply reload the page on that device to regain the connection.
-
 ## Remembering Patterns
 
-The web server keeps track of the most recent 25 patterns you have loaded (including the most recent pick number and number of repeats, which are restored when you select a pattern).
+The web server keeps track of the most recent 25 patterns you have used in a database
+(including the most recent pick number and number of repeats, which are restored when you select a pattern).
+The patterns in the database are displayed in the pattern menu.
+If you shut down the server or there is a power failure, all this information should be retained.
 
-However, at present this information is only contained in memory.
-It will be lost if the server loses power (or if you shut it down).
-Thus it is safest to write down where you are at the end of a weaving session.
+If you are worried that the pattern database is corrupted, or just want to clear it, you can start the server with the **--reset-db** argument, as explained above.
 
 ## Planned Improvements
 
 * Test this software on a real loom.
 
 * Add support for other languages.
-
-* Use a database to store patterns and the current pick.
 
 ## Developer Tips
 
@@ -133,6 +142,11 @@ Thus it is safest to write down where you are at the end of a weaving session.
 
 * You may run a mock loom by starting the server with: **run_seguin_loom mock**.
   The mock loom does not use a serial port.
+  **run_seguin_loom mock** also accepts these command-line arguments:
+
+    * **--reset-db** Reset the pattern database. Try this if you think the database is corrupted.
+
+    * **--verbose** Print more diagnostic information.
 
 * In mock mode the web page shows a few extra controls for debugging.
 

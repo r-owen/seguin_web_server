@@ -15,7 +15,7 @@
         <select name="pattern_menu" id="pattern_menu" title="Select a pattern to weave.&#10;Clear Menu clears all names except the one in use.">
             <option></option>
             <hr>
-            <option>Clear Menu</option>
+            <option>Clear Recents</option>
         </select></div>
         <form class="upload-form">
             <input type="file" id="file_input" multiple accept=".wif,.dtx" style="display:none;">

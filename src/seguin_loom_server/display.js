@@ -88,7 +88,7 @@ class ReducedPattern {
                 continue
             }
             if (pick >= this.pick_number) {
-                ctx.globalAlpha = 0.5
+                ctx.globalAlpha = 0.3
             } else {
                 ctx.globalAlpha = 1.0
             }
